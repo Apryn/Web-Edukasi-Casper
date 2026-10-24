@@ -43,7 +43,7 @@ $SSH_TARGET = "$VPS_USER@$VPS_IP"
 Write-Host ""
 Write-Host "-> [2/3] Menjalankan update script di VPS..." -ForegroundColor Yellow
 
-$remoteCommand = "if [ -f /var/www/casper-web/deploy/update.sh ]; then bash /var/www/casper-web/deploy/update.sh; else echo 'Setup pertama kali...'; bash /var/www/casper-web/deploy/setup-vps.sh; fi"
+$remoteCommand = "if [ ! -d /var/www/casper-web ]; then echo '🚀 Menjalankan setup pertama kali di VPS...'; git clone https://github.com/Apryn/Web-Edukasi-Casper.git /var/www/casper-web && bash /var/www/casper-web/deploy/setup-vps.sh; else bash /var/www/casper-web/deploy/update.sh; fi"
 
 ssh @SSH_ARGS $SSH_TARGET $remoteCommand
 
