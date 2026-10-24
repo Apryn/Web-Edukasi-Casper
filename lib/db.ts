@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 
 // Ensure data folder exists
 const dataDir = path.join(process.cwd(), "data");
@@ -8,64 +7,7 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, "academy.db");
-
-// Singleton connection
-let dbInstance: DatabaseSync | null = null;
-
-export function getDatabase(): DatabaseSync {
-  if (!dbInstance) {
-    dbInstance = new DatabaseSync(dbPath);
-    initSchema(dbInstance);
-  }
-  return dbInstance;
-}
-
-function initSchema(db: DatabaseSync): void {
-  // 1. Users table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT DEFAULT 'USER',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-
-  // 2. Course progress table (per user per course)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS course_progress (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      course_slug TEXT NOT NULL,
-      completed_lesson_ids TEXT DEFAULT '[]',
-      quiz_scores TEXT DEFAULT '{}',
-      last_lesson_id TEXT,
-      updated_at TEXT NOT NULL,
-      UNIQUE(user_id, course_slug),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-  `);
-
-  // 3. Quiz submissions table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS quiz_submissions (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      course_slug TEXT NOT NULL,
-      lesson_id TEXT NOT NULL,
-      score INTEGER NOT NULL,
-      answers TEXT DEFAULT '{}',
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-  `);
-}
-
-// ── Database Operations ──────────────────────────────────────────
+const dbFilePath = path.join(dataDir, "academy.json");
 
 export interface DbUser {
   id: string;
@@ -77,18 +19,85 @@ export interface DbUser {
   updated_at: string;
 }
 
+export interface DbCourseProgress {
+  id: string;
+  user_id: string;
+  course_slug: string;
+  completed_lesson_ids: string; // JSON string "[]"
+  quiz_scores: string; // JSON string "{}"
+  last_lesson_id: string | null;
+  updated_at: string;
+}
+
+export interface DbQuizSubmission {
+  id: string;
+  user_id: string;
+  course_slug: string;
+  lesson_id: string;
+  score: number;
+  answers: string; // JSON string
+  created_at: string;
+}
+
+interface DatabaseSchema {
+  users: DbUser[];
+  course_progress: DbCourseProgress[];
+  quiz_submissions: DbQuizSubmission[];
+}
+
+// In-memory cache + file sync
+let cache: DatabaseSchema | null = null;
+
+function loadDatabase(): DatabaseSchema {
+  if (cache) return cache;
+  try {
+    if (fs.existsSync(dbFilePath)) {
+      const raw = fs.readFileSync(dbFilePath, "utf8");
+      cache = JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error("Failed to read database file, initializing empty:", err);
+  }
+
+  if (!cache || typeof cache !== "object" || !Array.isArray(cache.users)) {
+    cache = {
+      users: [],
+      course_progress: [],
+      quiz_submissions: [],
+    };
+    saveDatabase(cache);
+  }
+  return cache;
+}
+
+function saveDatabase(data: DatabaseSchema): void {
+  cache = data;
+  try {
+    const tmpPath = `${dbFilePath}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf8");
+    fs.renameSync(tmpPath, dbFilePath);
+  } catch (err) {
+    console.error("Failed to persist database file:", err);
+  }
+}
+
+export function getDatabase() {
+  return loadDatabase();
+}
+
+// ── Database Operations ──────────────────────────────────────────
+
 export function findUserByEmail(email: string): DbUser | null {
-  const db = getDatabase();
-  const stmt = db.prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
-  const result = stmt.get(email.toLowerCase().trim()) as DbUser | undefined;
-  return result || null;
+  const db = loadDatabase();
+  const normalized = email.toLowerCase().trim();
+  const user = db.users.find((u) => u.email.toLowerCase().trim() === normalized);
+  return user || null;
 }
 
 export function findUserById(id: string): DbUser | null {
-  const db = getDatabase();
-  const stmt = db.prepare("SELECT * FROM users WHERE id = ? LIMIT 1");
-  const result = stmt.get(id) as DbUser | undefined;
-  return result || null;
+  const db = loadDatabase();
+  const user = db.users.find((u) => u.id === id);
+  return user || null;
 }
 
 export function createUser(user: {
@@ -98,22 +107,9 @@ export function createUser(user: {
   passwordHash: string;
   role?: string;
 }): DbUser {
-  const db = getDatabase();
+  const db = loadDatabase();
   const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO users (id, email, name, password_hash, role, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-  stmt.run(
-    user.id,
-    user.email.toLowerCase().trim(),
-    user.name.trim(),
-    user.passwordHash,
-    user.role || "USER",
-    now,
-    now
-  );
-  return {
+  const newUser: DbUser = {
     id: user.id,
     email: user.email.toLowerCase().trim(),
     name: user.name.trim(),
@@ -122,33 +118,24 @@ export function createUser(user: {
     created_at: now,
     updated_at: now,
   };
-}
-
-export interface DbCourseProgress {
-  id: string;
-  user_id: string;
-  course_slug: string;
-  completed_lesson_ids: string;
-  quiz_scores: string;
-  last_lesson_id: string | null;
-  updated_at: string;
+  db.users.push(newUser);
+  saveDatabase(db);
+  return newUser;
 }
 
 export function getUserCourseProgress(userId: string, courseSlug: string): DbCourseProgress | null {
-  const db = getDatabase();
-  const stmt = db.prepare(`
-    SELECT * FROM course_progress WHERE user_id = ? AND course_slug = ? LIMIT 1
-  `);
-  const row = stmt.get(userId, courseSlug) as DbCourseProgress | undefined;
-  return row || null;
+  const db = loadDatabase();
+  const found = db.course_progress.find(
+    (p) => p.user_id === userId && p.course_slug === courseSlug
+  );
+  return found || null;
 }
 
 export function getAllUserProgress(userId: string): DbCourseProgress[] {
-  const db = getDatabase();
-  const stmt = db.prepare(`
-    SELECT * FROM course_progress WHERE user_id = ? ORDER BY updated_at DESC
-  `);
-  return stmt.all(userId) as unknown as DbCourseProgress[];
+  const db = loadDatabase();
+  return db.course_progress
+    .filter((p) => p.user_id === userId)
+    .sort((a, b) => (b.updated_at > a.updated_at ? 1 : -1));
 }
 
 export function upsertUserProgress(data: {
@@ -159,26 +146,28 @@ export function upsertUserProgress(data: {
   quizScores: Record<string, number>;
   lastLessonId?: string;
 }): void {
-  const db = getDatabase();
+  const db = loadDatabase();
   const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO course_progress (id, user_id, course_slug, completed_lesson_ids, quiz_scores, last_lesson_id, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, course_slug) DO UPDATE SET
-      completed_lesson_ids = excluded.completed_lesson_ids,
-      quiz_scores = excluded.quiz_scores,
-      last_lesson_id = excluded.last_lesson_id,
-      updated_at = excluded.updated_at
-  `);
-  stmt.run(
-    data.id,
-    data.userId,
-    data.courseSlug,
-    JSON.stringify(data.completedLessonIds),
-    JSON.stringify(data.quizScores),
-    data.lastLessonId || null,
-    now
+  const index = db.course_progress.findIndex(
+    (p) => p.user_id === data.userId && p.course_slug === data.courseSlug
   );
+
+  const entry: DbCourseProgress = {
+    id: index >= 0 ? db.course_progress[index].id : data.id,
+    user_id: data.userId,
+    course_slug: data.courseSlug,
+    completed_lesson_ids: JSON.stringify(data.completedLessonIds),
+    quiz_scores: JSON.stringify(data.quizScores),
+    last_lesson_id: data.lastLessonId || null,
+    updated_at: now,
+  };
+
+  if (index >= 0) {
+    db.course_progress[index] = entry;
+  } else {
+    db.course_progress.push(entry);
+  }
+  saveDatabase(db);
 }
 
 export function recordQuizSubmission(sub: {
@@ -189,19 +178,16 @@ export function recordQuizSubmission(sub: {
   score: number;
   answers: Record<string, number>;
 }): void {
-  const db = getDatabase();
+  const db = loadDatabase();
   const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO quiz_submissions (id, user_id, course_slug, lesson_id, score, answers, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-  stmt.run(
-    sub.id,
-    sub.userId,
-    sub.courseSlug,
-    sub.lessonId,
-    sub.score,
-    JSON.stringify(sub.answers),
-    now
-  );
+  db.quiz_submissions.push({
+    id: sub.id,
+    user_id: sub.userId,
+    course_slug: sub.courseSlug,
+    lesson_id: sub.lessonId,
+    score: sub.score,
+    answers: JSON.stringify(sub.answers),
+    created_at: now,
+  });
+  saveDatabase(db);
 }
