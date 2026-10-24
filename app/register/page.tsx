@@ -4,27 +4,44 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Lock, Mail, ShieldCheck, User } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Lock, Mail, ShieldCheck, User } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg("");
     setLoading(true);
-    setTimeout(() => {
-      if (typeof window !== "undefined") {
-        localStorage.setItem(
-          "sc_user_session",
-          JSON.stringify({ email, name: name || email.split("@")[0] })
-        );
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.error || "Gagal mendaftarkan akun.");
+        setLoading(false);
+        return;
       }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("sc_user_session", JSON.stringify(data.user));
+      }
+
       router.push("/dashboard");
-    }, 600);
+    } catch (err: any) {
+      setErrorMsg("Tidak dapat terhubung ke server database.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,8 +63,15 @@ export default function RegisterPage() {
             className="brand-mark"
           />
           <h2>Mulai Perjalanan Trading Anda</h2>
-          <p>Daftar akun gratis untuk mencatat progres kelas, mengerjakan kuis, dan menyimpan catatan belajar.</p>
+          <p>Daftar akun gratis untuk mencatat progres kelas, mengerjakan kuis, dan menyimpan catatan belajar di database server.</p>
         </div>
+
+        {errorMsg && (
+          <div className="auth-error-alert">
+            <AlertCircle size={16} />
+            <span>{errorMsg}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
@@ -88,7 +112,7 @@ export default function RegisterPage() {
                 id="password"
                 type="password"
                 required
-                placeholder="Minimal 8 karakter"
+                placeholder="Minimal 6 karakter"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />

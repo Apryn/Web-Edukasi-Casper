@@ -353,3 +353,8 @@ h1,h2,h3,p{margin-top:0}.hero h1{font:600 clamp(42px,5.2vw,67px)/1.08 'Manrope',
   .table-header,.table-row{grid-template-columns:1fr;gap:6px}
 }
 
+.auth-error-alert{background:#2a1114;border:1px solid #ef4444;color:#fca5a5;padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:12px;margin-bottom:18px}
+.auth-error-alert svg{color:#ef4444;flex-shrink:0}
+.dashboard-logout-link{margin-left:auto;background:none;border:1px solid #2a3847;color:#8595a4;font:9px 'DM Mono',monospace;padding:3px 8px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:.2s}
+.dashboard-logout-link:hover{border-color:#ef4444;color:#ef4444}
+

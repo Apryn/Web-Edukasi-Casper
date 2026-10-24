@@ -17,17 +17,49 @@ import {
   Compass,
   GraduationCap,
   Layers,
+  LogOut,
   Sparkles,
   Trophy,
+  User,
 } from "lucide-react";
 
 export default function DashboardPage() {
   const allCourses = getAllCourses();
   const [progressMap, setProgressMap] = useState<Record<string, UserCourseProgress>>({});
+  const [currentUser, setCurrentUser] = useState<{ id?: string; name?: string; email?: string } | null>(null);
 
   useEffect(() => {
+    // 1. Load initial local progress
     setProgressMap(getStoredProgress());
+
+    // 2. Fetch authenticated user profile
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) {
+          setCurrentUser(data.user);
+        } else if (typeof window !== "undefined") {
+          const raw = localStorage.getItem("sc_user_session");
+          if (raw) setCurrentUser(JSON.parse(raw));
+        }
+      })
+      .catch(() => {});
+
+    // 3. Sync with server SQLite database
+    import("@/lib/progress").then(({ fetchServerProgress }) => {
+      fetchServerProgress().then((merged) => {
+        if (merged) setProgressMap(merged);
+      });
+    });
   }, []);
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("sc_user_session");
+    }
+    window.location.href = "/login";
+  };
 
   const enrolledSlugs = Object.keys(progressMap);
   const enrolledCourses = allCourses.filter((c) => enrolledSlugs.includes(c.slug));
@@ -75,13 +107,18 @@ export default function DashboardPage() {
           <div className="eyebrow">
             <span className="eyebrow-line" /> STUDENT PORTAL
             <span className="eyebrow-muted">CASPER ACADEMY DASHBOARD</span>
+            {currentUser && (
+              <button onClick={handleLogout} className="dashboard-logout-link" title="Keluar akun">
+                <LogOut size={13} /> Keluar
+              </button>
+            )}
           </div>
           <h1>
-            Halo, Trader.<br />
+            Halo, {currentUser?.name || "Trader"}.<br />
             <em>Disiplin Dibangun Setiap Hari.</em>
           </h1>
           <p className="hero-description">
-            Pantau progres modul, riwayat pelajaran, dan kuis Anda. Terus asah pemahaman struktur sebelum mengambil keputusan di pasar riil.
+            Pantau progres modul, riwayat pelajaran, dan kuis Anda. Data tersinkronisasi otomatis dengan database server Casper.
           </p>
         </div>
 

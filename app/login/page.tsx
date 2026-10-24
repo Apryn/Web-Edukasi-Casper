@@ -4,24 +4,44 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Lock, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Lock, Mail, ShieldCheck, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg("");
     setLoading(true);
-    setTimeout(() => {
-      // In Tahap 1, store active session state
-      if (typeof window !== "undefined") {
-        localStorage.setItem("sc_user_session", JSON.stringify({ email, name: email.split("@")[0] }));
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.error || "Gagal masuk. Periksa email dan kata sandi Anda.");
+        setLoading(false);
+        return;
       }
+
+      // Store local session info for display
+      if (typeof window !== "undefined") {
+        localStorage.setItem("sc_user_session", JSON.stringify(data.user));
+      }
+
       router.push("/dashboard");
-    }, 600);
+    } catch (err: any) {
+      setErrorMsg("Tidak dapat terhubung ke server database.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -45,6 +65,13 @@ export default function LoginPage() {
           <h2>Selamat Datang Kembali</h2>
           <p>Masuk untuk melanjutkan riwayat modul dan kuis trading Anda.</p>
         </div>
+
+        {errorMsg && (
+          <div className="auth-error-alert">
+            <AlertCircle size={16} />
+            <span>{errorMsg}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
@@ -94,7 +121,7 @@ export default function LoginPage() {
 
         <div className="auth-security-notice">
           <ShieldCheck size={14} />
-          <span>Akses aman terenkripsi. Progres tersimpan otomatis.</span>
+          <span>Database server terenkripsi. Progres tersimpan aman.</span>
         </div>
       </div>
     </div>

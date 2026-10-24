@@ -22,6 +22,50 @@ export function saveStoredProgress(data: Record<string, UserCourseProgress>): vo
   }
 }
 
+// Background sync to server database
+export async function syncProgressToServer(
+  courseSlug: string,
+  progress: UserCourseProgress,
+  quizSubmission?: { lessonId: string; score: number; answers: Record<string, number> }
+): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    await fetch("/api/progress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        courseSlug,
+        completedLessonIds: progress.completedLessonIds,
+        quizScores: progress.quizScores,
+        lastLessonId: progress.lastAccessedLessonId,
+        quizSubmission,
+      }),
+    });
+  } catch (err) {
+    // Graceful offline fallback
+    console.warn("Could not sync to server database (running offline/unauthenticated)", err);
+  }
+}
+
+// Fetch server database progress and merge into local
+export async function fetchServerProgress(): Promise<Record<string, UserCourseProgress> | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const res = await fetch("/api/progress");
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.progressMap) {
+      const local = getStoredProgress();
+      const merged = { ...local, ...data.progressMap };
+      saveStoredProgress(merged);
+      return merged;
+    }
+  } catch (e) {
+    // Ignore if not logged in
+  }
+  return null;
+}
+
 export function getCourseProgress(courseSlug: string): UserCourseProgress {
   const all = getStoredProgress();
   if (all[courseSlug]) {
@@ -48,6 +92,7 @@ export function enrollCourse(courseSlug: string, firstLessonId?: string): UserCo
       updatedAt: new Date().toISOString(),
     };
     saveStoredProgress(all);
+    syncProgressToServer(courseSlug, all[courseSlug]);
   }
   return all[courseSlug];
 }
@@ -74,10 +119,18 @@ export function toggleLessonComplete(courseSlug: string, lessonId: string): bool
   all[courseSlug] = current;
   saveStoredProgress(all);
 
+  // Sync with server DB
+  syncProgressToServer(courseSlug, current);
+
   return !isCompleted;
 }
 
-export function saveQuizScore(courseSlug: string, lessonId: string, score: number): void {
+export function saveQuizScore(
+  courseSlug: string,
+  lessonId: string,
+  score: number,
+  answers?: Record<string, number>
+): void {
   const all = getStoredProgress();
   const current = all[courseSlug] || {
     courseSlug,
@@ -94,6 +147,13 @@ export function saveQuizScore(courseSlug: string, lessonId: string, score: numbe
   current.updatedAt = new Date().toISOString();
   all[courseSlug] = current;
   saveStoredProgress(all);
+
+  // Sync with server DB including full submission
+  syncProgressToServer(courseSlug, current, {
+    lessonId,
+    score,
+    answers: answers || {},
+  });
 }
 
 export function calculateCoursePercentage(totalLessons: number, completedCount: number): number {
