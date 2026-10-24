@@ -1,4 +1,8 @@
+import Link from "next/link";
 import Image from "next/image";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import { coursesData } from "@/lib/courses-data";
 import {
   ArrowDownRight,
   ArrowRight,
@@ -9,40 +13,13 @@ import {
   CircleHelp,
   Clock3,
   Compass,
+  GraduationCap,
   Layers3,
-  Menu,
   MoveUpRight,
   ShieldCheck,
   Sparkles,
   Wrench,
 } from "lucide-react";
-
-const articles = [
-  {
-    number: "01",
-    category: "MARKET STRUCTURE",
-    title: "Membaca struktur market sebelum mencari entry",
-    description: "Pahami konteks pergerakan harga, bukan sekadar mengejar candle yang sedang bergerak.",
-    read: "6 MENIT BACA",
-    tag: "FOUNDATION",
-  },
-  {
-    number: "02",
-    category: "RISK MANAGEMENT",
-    title: "Bertahan di market dimulai dari mengelola risiko",
-    description: "Rencana risiko yang jelas membantu menjaga keputusan tetap konsisten saat market berubah.",
-    read: "8 MENIT BACA",
-    tag: "PRACTICE",
-  },
-  {
-    number: "03",
-    category: "TRADING PSYCHOLOGY",
-    title: "Tidak ada setup juga merupakan keputusan",
-    description: "Belajar menunggu kondisi yang sesuai tanpa merasa harus selalu membuka posisi.",
-    read: "5 MENIT BACA",
-    tag: "MINDSET",
-  },
-];
 
 const candles: [number, number, number, number, boolean][] = [
   [14, 61, 22, 42, true], [28, 49, 31, 28, true], [42, 40, 26, 44, false],
@@ -73,40 +50,24 @@ function MarketChart() {
 }
 
 export default function Home() {
+  const featuredCourses = coursesData.slice(0, 3);
+
   return (
     <main>
-      <div className="topline">
-        <span>INDEPENDENT TRADING EDUCATION</span>
-        <span className="topline-right"><span className="live-dot" /> A PLACE TO THINK CLEARLY <span className="topline-index">SC / 001</span></span>
-      </div>
-
-      <header className="nav wrap">
-        <a className="brand" href="#" aria-label="Signal Casper home">
-          <Image src="/signal-casper.png" alt="Signal Casper" width={54} height={62} priority className="brand-mark" />
-          <span className="brand-name">SIGNAL <b>CASPER</b><small>MARKET INTELLIGENCE</small></span>
-        </a>
-        <nav className="desktop-nav" aria-label="Navigasi utama">
-          <a href="#analisa">Analisa</a>
-          <a href="#belajar">Belajar</a>
-          <a href="#tools">Tools</a>
-          <a href="#tentang">Tentang</a>
-        </nav>
-        <a className="nav-cta" href="#analisa">Jelajahi market <ArrowUpRight size={15} /></a>
-        <button className="mobile-menu" aria-label="Buka menu"><Menu size={21} /></button>
-      </header>
+      <Navbar />
 
       <section className="hero wrap">
         <div className="hero-copy">
-          <div className="eyebrow"><span className="eyebrow-line" /> MARKET NOTES <span className="eyebrow-muted">VOL. 01 — THE PROCESS</span></div>
+          <div className="eyebrow"><span className="eyebrow-line" /> MARKET NOTES &amp; ACADEMY <span className="eyebrow-muted">VOL. 01 — THE PROCESS</span></div>
           <h1>Read the market.<br /><em>Not the noise.</em></h1>
           <p className="hero-description">
-            Ruang untuk memahami pergerakan market, membangun proses trading, dan mengambil keputusan dengan lebih terstruktur.
+            Platform edukasi trading terstruktur dan analisa market independen. Bangun proses berpikir, pahami likuiditas institusi, dan latih disiplin eksekusi tanpa ilusi profit kilat.
           </p>
           <div className="hero-actions">
-            <a className="button button-primary" href="#analisa">Lihat analisa market <ArrowUpRight size={16} /></a>
-            <a className="text-link" href="#belajar">Mulai belajar <ArrowRight size={15} /></a>
+            <Link className="button button-primary" href="/belajar">Mulai Belajar di Academy <ArrowRight size={16} /></Link>
+            <Link className="text-link" href="/analisa">Lihat Analisa Market <ArrowUpRight size={15} /></Link>
           </div>
-          <div className="hero-footnote"><ShieldCheck size={15} /> Edukasi berbasis proses. Bukan janji profit.</div>
+          <div className="hero-footnote"><ShieldCheck size={15} /> Edukasi berbasis proses teruji. Bukan sinyal instan.</div>
         </div>
 
         <div className="hero-visual">
@@ -123,69 +84,80 @@ export default function Home() {
 
       <div className="ticker" aria-label="Prinsip Signal Casper">
         <div className="ticker-inner">
-          {["CONTEXT BEFORE ENTRY", "PROCESS OVER PREDICTION", "RISK BEFORE REWARD", "DISCIPLINE IS A PRACTICE"].map((item, i) => (
+          {["CONTEXT BEFORE ENTRY", "PROCESS OVER PREDICTION", "RISK BEFORE REWARD", "DISCIPLINE IS A PRACTICE"].map((item) => (
             <span key={item}>{item}<i>✳</i></span>
           ))}
         </div>
       </div>
 
-      <section className="section wrap" id="analisa">
-        <div className="section-heading">
-          <div><div className="eyebrow"><span className="eyebrow-line" /> 01 / MARKET DESK</div><h2>See the bigger picture.</h2></div>
-          <p className="section-intro">Analisa bukan ramalan. Ini adalah cara menyusun skenario, mengenali level penting, dan memahami apa yang bisa membatalkan sebuah ide.</p>
-        </div>
-        <div className="market-feature">
-          <div className="market-feature-main">
-            <div className="feature-kicker"><span className="feature-number">A—01</span><span className="tag">MARKET OUTLOOK</span><span className="feature-date">FORMAT CONTOH</span></div>
-            <div className="feature-title-row"><div><div className="instrument-label">INSTRUMENT / XAUUSD</div><h3>Gold, in context.</h3></div><div className="feature-symbol"><ChartNoAxesCombined size={25} /></div></div>
-            <p>Analisis struktur harga, area yang layak diamati, dan skenario yang perlu dikonfirmasi sebelum mengambil keputusan.</p>
-            <a href="#analisa-detail" className="feature-link">Lihat format analisa <ArrowUpRight size={16} /></a>
-          </div>
-          <div className="market-feature-side" id="analisa-detail">
-            <div className="side-heading"><span>ANALYSIS FRAMEWORK</span><span>01—04</span></div>
-            <div className="framework-row"><span className="framework-num">01</span><div><b>Market bias</b><small>Konteks dan struktur dominan</small></div><Compass size={17} /></div>
-            <div className="framework-row"><span className="framework-num">02</span><div><b>Key levels</b><small>Area reaksi yang perlu diamati</small></div><Layers3 size={17} /></div>
-            <div className="framework-row"><span className="framework-num">03</span><div><b>Scenario planning</b><small>Kondisi konfirmasi dan invalidasi</small></div><MoveUpRight size={17} /></div>
-            <div className="framework-row"><span className="framework-num">04</span><div><b>Risk awareness</b><small>Risiko sebelum peluang</small></div><ShieldCheck size={17} /></div>
-            <div className="side-disclaimer">Contoh struktur konten. Belum terhubung ke feed harga atau analisa live.</div>
-          </div>
-        </div>
-      </section>
-
+      {/* Academy Feature Section */}
       <section className="learning-section" id="belajar">
         <div className="wrap">
           <div className="section-heading">
-            <div><div className="eyebrow"><span className="eyebrow-line" /> 02 / THE READING ROOM</div><h2>Build the thinking.</h2></div>
-            <a className="text-link section-more" href="#artikel">Jelajahi semua materi <ArrowRight size={15} /></a>
+            <div>
+              <div className="eyebrow"><span className="eyebrow-line" /> 01 / SIGNAL CASPER ACADEMY</div>
+              <h2>Kelas Trading Terstruktur.</h2>
+            </div>
+            <Link className="text-link section-more" href="/belajar">Jelajahi Semua 9 Kelas <ArrowRight size={15} /></Link>
           </div>
-          <div className="article-grid" id="artikel">
-            {articles.map((article) => (
-              <article className="article-card" key={article.number}>
-                <div className="article-top"><span>{article.number} / FIELD NOTES</span><span className="article-icon"><BookOpen size={17} /></span></div>
-                <div className="article-category">{article.category}</div>
-                <h3>{article.title}</h3>
-                <p>{article.description}</p>
-                <div className="article-bottom"><span><Clock3 size={13} /> {article.read}</span><a href="#kontak" aria-label={`Pelajari ${article.title}`}><ArrowUpRight size={17} /></a></div>
+
+          <div className="article-grid">
+            {featuredCourses.map((course) => (
+              <article className="article-card" key={course.id}>
+                <div className="article-top"><span>{course.number} / ACADEMY</span><span className="article-icon"><GraduationCap size={17} /></span></div>
+                <div className="article-category">{course.category.toUpperCase()}</div>
+                <h3>{course.title}</h3>
+                <p>{course.overview}</p>
+                <div className="article-bottom">
+                  <span><Clock3 size={13} /> {course.duration} · {course.totalLessons} Pelajaran</span>
+                  <Link href={`/belajar/${course.slug}`} aria-label={`Pelajari ${course.title}`}><ArrowUpRight size={17} /></Link>
+                </div>
               </article>
             ))}
           </div>
         </div>
       </section>
 
+      {/* Market Desk Feature */}
+      <section className="section wrap" id="analisa">
+        <div className="section-heading">
+          <div><div className="eyebrow"><span className="eyebrow-line" /> 02 / MARKET DESK</div><h2>See the bigger picture.</h2></div>
+          <p className="section-intro">Analisa bukan ramalan. Ini adalah cara menyusun skenario, mengenali level penting, dan memahami apa yang bisa membatalkan sebuah ide.</p>
+        </div>
+        <div className="market-feature">
+          <div className="market-feature-main">
+            <div className="feature-kicker"><span className="feature-number">DESK—01</span><span className="tag">MARKET OUTLOOK</span><span className="feature-date">XAUUSD</span></div>
+            <div className="feature-title-row"><div><div className="instrument-label">INSTRUMENT / XAUUSD</div><h3>Gold, in context.</h3></div><div className="feature-symbol"><ChartNoAxesCombined size={25} /></div></div>
+            <p>Analisis struktur harga emas, area reaksi supply/demand, dan skenario konfirmasi sebelum mengambil keputusan entri.</p>
+            <Link href="/analisa" className="feature-link">Buka Analisa Lengkap <ArrowUpRight size={16} /></Link>
+          </div>
+          <div className="market-feature-side">
+            <div className="side-heading"><span>ANALYSIS FRAMEWORK</span><span>01—04</span></div>
+            <div className="framework-row"><span className="framework-num">01</span><div><b>Market bias</b><small>Konteks dan struktur dominan</small></div><Compass size={17} /></div>
+            <div className="framework-row"><span className="framework-num">02</span><div><b>Key levels</b><small>Area reaksi yang perlu diamati</small></div><Layers3 size={17} /></div>
+            <div className="framework-row"><span className="framework-num">03</span><div><b>Scenario planning</b><small>Kondisi konfirmasi dan invalidasi</small></div><MoveUpRight size={17} /></div>
+            <div className="framework-row"><span className="framework-num">04</span><div><b>Risk awareness</b><small>Risiko sebelum peluang</small></div><ShieldCheck size={17} /></div>
+            <div className="side-disclaimer">Pemetaan probabilitas teknikal terstruktur. Edukasi proses.</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Tools Section */}
       <section className="tools-section wrap" id="tools">
         <div className="tools-intro">
           <div className="eyebrow"><span className="eyebrow-line" /> 03 / TRADER WORKBENCH</div>
           <h2>Less guessing.<br /><em>More process.</em></h2>
           <p>Perangkat sederhana untuk membantu menyusun rencana, mencatat keputusan, dan mengevaluasi proses trading.</p>
-          <a className="text-link" href="#kontak">Lihat roadmap tools <ArrowRight size={15} /></a>
+          <Link className="text-link" href="/dashboard">Buka Student Dashboard <ArrowRight size={15} /></Link>
         </div>
         <div className="tools-list">
-          <div className="tool-row"><div className="tool-icon"><Wrench size={19} /></div><div><span>TOOL / 001</span><h3>Risk calculator</h3><p>Hitung risiko sebelum merencanakan posisi.</p></div><span className="tool-status">PLANNED</span><ArrowUpRight className="tool-arrow" size={17} /></div>
-          <div className="tool-row"><div className="tool-icon"><Layers3 size={19} /></div><div><span>TOOL / 002</span><h3>Trading journal</h3><p>Catat alasan, proses, dan evaluasi transaksi.</p></div><span className="tool-status">PLANNED</span><ArrowUpRight className="tool-arrow" size={17} /></div>
+          <div className="tool-row"><div className="tool-icon"><Wrench size={19} /></div><div><span>TOOL / 001</span><h3>Risk calculator</h3><p>Hitung lot size proporsional dari batas toleransi kerugian nominal.</p></div><span className="tool-status">PLANNED</span><ArrowUpRight className="tool-arrow" size={17} /></div>
+          <div className="tool-row"><div className="tool-icon"><Layers3 size={19} /></div><div><span>TOOL / 002</span><h3>Trading journal</h3><p>Catat alasan, proses, dan evaluasi transaksi berkala.</p></div><span className="tool-status">PLANNED</span><ArrowUpRight className="tool-arrow" size={17} /></div>
           <div className="tool-row"><div className="tool-icon"><ChartNoAxesCombined size={19} /></div><div><span>TOOL / 003</span><h3>Performance review</h3><p>Pelajari pola dari catatan trading sendiri.</p></div><span className="tool-status">PLANNED</span><ArrowUpRight className="tool-arrow" size={17} /></div>
         </div>
       </section>
 
+      {/* Manifesto */}
       <section className="manifesto" id="tentang">
         <div className="wrap manifesto-inner">
           <div className="manifesto-mark"><Image src="/signal-casper.png" alt="" width={90} height={105} /></div>
@@ -194,14 +166,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="footer wrap" id="kontak">
-        <div className="footer-main">
-          <a className="brand footer-brand" href="#"><Image src="/signal-casper.png" alt="Signal Casper" width={45} height={52} className="brand-mark" /><span className="brand-name">SIGNAL <b>CASPER</b><small>MARKET INTELLIGENCE</small></span></a>
-          <p>Market insight, trading education, and tools built around a better process.</p>
-        </div>
-        <div className="footer-links"><div><span>EXPLORE</span><a href="#analisa">Analisa market</a><a href="#belajar">Materi belajar</a><a href="#tools">Trading tools</a></div><div><span>IMPORTANT</span><a href="#disclaimer">Risk disclaimer</a><a href="#tentang">Tentang kami</a><a href="#kontak">Kontak</a></div></div>
-        <div className="footer-bottom" id="disclaimer"><span>© 2026 SIGNAL CASPER. BUILT AROUND THE PROCESS.</span><span><CircleHelp size={13} /> Trading memiliki risiko tinggi. Konten untuk edukasi, bukan nasihat keuangan.</span></div>
-      </footer>
+      <Footer />
     </main>
   );
 }
