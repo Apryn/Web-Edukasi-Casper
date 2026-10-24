@@ -69,18 +69,17 @@ pm2 save
 
 # 5. Buka firewall port jika UFW aktif
 echo ""
-echo "▶ [5/6] Membuka port $APP_PORT di firewall..."
+echo "▶ [5/6] Membuka port 82 di firewall..."
 if command -v ufw &> /dev/null; then
-    sudo ufw allow $APP_PORT/tcp || true
+    sudo ufw allow 82/tcp || true
 fi
 
-# 6. Konfigurasi Nginx (Opsional / Template jika nanti pakai domain)
+# 6. Konfigurasi Nginx di Port 82
 echo ""
-echo "▶ [6/6] Menyiapkan konfigurasi Nginx..."
+echo "▶ [6/6] Menyiapkan konfigurasi Nginx di port 82..."
 sudo tee /etc/nginx/sites-available/casper-web > /dev/null << 'EOF'
 server {
-    listen 80;
-    # Ganti dengan domain nanti jika sudah ada, misal: casper.motodoct.com atau signalcasper.com
+    listen 82;
     server_name _;
 
     location / {
@@ -96,13 +95,16 @@ server {
 }
 EOF
 
+sudo ln -sf /etc/nginx/sites-available/casper-web /etc/nginx/sites-enabled/casper-web
+sudo nginx -t && sudo systemctl reload nginx
+
 echo ""
 echo "=================================================="
 echo "    ✅ SETUP SELESAI!"
 echo "=================================================="
 echo "  Web Casper sudah aktif!"
 echo "  Bisa langsung dibuka di browser lewat IP:"
-echo "  👉 http://187.77.156.219:$APP_PORT"
+echo "  👉 http://187.77.156.219:82"
 echo ""
 echo "  (Nanti saat sudah ada domain, cukup arahkan domain ke Nginx & pasang SSL certbot)"
 echo "=================================================="
