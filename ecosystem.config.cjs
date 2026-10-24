@@ -2,8 +2,7 @@ module.exports = {
   apps: [
     {
       name: "casper-web",
-      script: "npm",
-      args: "start -- -p 3000",
+      script: "server.js",
       cwd: "/var/www/casper-web",
       exec_mode: "fork",
       instances: 1,
