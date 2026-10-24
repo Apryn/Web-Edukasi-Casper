@@ -8,7 +8,7 @@
 set -e
 
 APP_DIR="/var/www/casper-web"
-APP_PORT=3000
+APP_PORT=3005
 REPO_URL="https://github.com/Apryn/Web-Edukasi-Casper.git"
 
 echo "=================================================="
@@ -83,7 +83,7 @@ server {
     server_name _;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:3005;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
