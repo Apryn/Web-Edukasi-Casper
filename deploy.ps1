@@ -55,5 +55,5 @@ Write-Host "     DEPLOY SELESAI!" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Akses Web Casper di:" -ForegroundColor White
-Write-Host "  -> http://$VPS_IP`:82" -ForegroundColor Cyan
+Write-Host "  -> http://$VPS_IP`:83" -ForegroundColor Cyan
 Write-Host ""

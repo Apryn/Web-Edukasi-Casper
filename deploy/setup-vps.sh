@@ -69,17 +69,17 @@ pm2 save
 
 # 5. Buka firewall port jika UFW aktif
 echo ""
-echo "▶ [5/6] Membuka port 82 di firewall..."
+echo "▶ [5/6] Membuka port 83 di firewall..."
 if command -v ufw &> /dev/null; then
-    sudo ufw allow 82/tcp || true
+    sudo ufw allow 83/tcp || true
 fi
 
-# 6. Konfigurasi Nginx di Port 82
+# 6. Konfigurasi Nginx di Port 83
 echo ""
-echo "▶ [6/6] Menyiapkan konfigurasi Nginx di port 82..."
+echo "▶ [6/6] Menyiapkan konfigurasi Nginx di port 83..."
 sudo tee /etc/nginx/sites-available/casper-web > /dev/null << 'EOF'
 server {
-    listen 82;
+    listen 83;
     server_name _;
 
     location / {
@@ -104,7 +104,7 @@ echo "    ✅ SETUP SELESAI!"
 echo "=================================================="
 echo "  Web Casper sudah aktif!"
 echo "  Bisa langsung dibuka di browser lewat IP:"
-echo "  👉 http://187.77.156.219:82"
+echo "  👉 http://187.77.156.219:83"
 echo ""
 echo "  (Nanti saat sudah ada domain, cukup arahkan domain ke Nginx & pasang SSL certbot)"
 echo "=================================================="
