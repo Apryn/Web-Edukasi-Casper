@@ -6,18 +6,26 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { getAllCourses } from "@/lib/courses-data";
 import { CourseCategory, CourseLevel } from "@/lib/types";
-import { getStoredProgress, calculateCoursePercentage } from "@/lib/progress";
 import {
+  getStoredProgress,
+  calculateCoursePercentage,
+  fetchServerProgress,
+} from "@/lib/progress";
+import {
+  ArrowRight,
   ArrowUpRight,
   BookOpen,
   CheckCircle2,
   Clock3,
   Filter,
-  GraduationCap,
   Layers,
   Search,
   Sparkles,
+  Play,
+  RotateCcw,
 } from "lucide-react";
+
+type LearningStatusFilter = "All" | "NotStarted" | "InProgress" | "Completed";
 
 const categories: Array<{ label: string; value: CourseCategory | "All" }> = [
   { label: "Semua Kategori", value: "All" },
@@ -35,23 +43,56 @@ const levels: Array<{ label: string; value: CourseLevel | "All" }> = [
   { label: "Advanced", value: "Advanced" },
 ];
 
+const statusFilters: Array<{ label: string; value: LearningStatusFilter }> = [
+  { label: "Semua Status", value: "All" },
+  { label: "Belum Dimulai", value: "NotStarted" },
+  { label: "Sedang Dipelajari", value: "InProgress" },
+  { label: "Selesai", value: "Completed" },
+];
+
 export default function BelajarPage() {
   const courses = getAllCourses();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<CourseCategory | "All">("All");
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | "All">("All");
+  const [selectedStatus, setSelectedStatus] = useState<LearningStatusFilter>("All");
   const [userProgressMap, setUserProgressMap] = useState<Record<string, number>>({});
+  const [lastLessonMap, setLastLessonMap] = useState<Record<string, string | undefined>>({});
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const progress = getStoredProgress();
+    // 1. Initial local load
+    const local = getStoredProgress();
     const map: Record<string, number> = {};
+    const lastMap: Record<string, string | undefined> = {};
+
     courses.forEach((c) => {
-      const p = progress[c.slug];
+      const p = local[c.slug];
       if (p) {
         map[c.slug] = calculateCoursePercentage(c.totalLessons, p.completedLessonIds.length);
+        lastMap[c.slug] = p.lastAccessedLessonId;
       }
     });
     setUserProgressMap(map);
+    setLastLessonMap(lastMap);
+    setIsLoading(false);
+
+    // 2. Fetch server database sync
+    fetchServerProgress().then((merged) => {
+      if (merged) {
+        const updatedMap: Record<string, number> = {};
+        const updatedLastMap: Record<string, string | undefined> = {};
+        courses.forEach((c) => {
+          const p = merged[c.slug];
+          if (p) {
+            updatedMap[c.slug] = calculateCoursePercentage(c.totalLessons, p.completedLessonIds.length);
+            updatedLastMap[c.slug] = p.lastAccessedLessonId;
+          }
+        });
+        setUserProgressMap(updatedMap);
+        setLastLessonMap(updatedLastMap);
+      }
+    });
   }, [courses]);
 
   const filteredCourses = courses.filter((c) => {
@@ -65,7 +106,17 @@ export default function BelajarPage() {
 
     const matchesLevel = selectedLevel === "All" || c.level === selectedLevel;
 
-    return matchesSearch && matchesCategory && matchesLevel;
+    const pct = userProgressMap[c.slug] || 0;
+    let matchesStatus = true;
+    if (selectedStatus === "NotStarted") {
+      matchesStatus = pct === 0;
+    } else if (selectedStatus === "InProgress") {
+      matchesStatus = pct > 0 && pct < 100;
+    } else if (selectedStatus === "Completed") {
+      matchesStatus = pct === 100;
+    }
+
+    return matchesSearch && matchesCategory && matchesLevel && matchesStatus;
   });
 
   return (
@@ -84,7 +135,7 @@ export default function BelajarPage() {
             <em>Bukan Jalan Pintas. Ini Proses.</em>
           </h1>
           <p className="hero-description">
-            Kurikulum edukasi bertahap dari pemahaman likuiditas pasar, aksi harga, struktur market institusional, hingga manajemen risiko psikologis.
+            Kurikulum edukasi bertahap dari pemahaman likuiditas pasar, aksi harga, struktur market institusional, hingga manajemen risiko psikologis. Semua kelas 100% gratis dan terstruktur.
           </p>
 
           <div className="academy-stats-row">
@@ -147,22 +198,43 @@ export default function BelajarPage() {
               ))}
             </div>
           </div>
+
+          <div className="filter-group">
+            <span className="filter-label">STATUS BELAJAR:</span>
+            <div className="filter-pills">
+              {statusFilters.map((st) => (
+                <button
+                  key={st.value}
+                  className={`pill-btn ${selectedStatus === st.value ? "active" : ""}`}
+                  onClick={() => setSelectedStatus(st.value)}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Course Grid */}
       <section className="catalog-grid wrap">
-        {filteredCourses.length === 0 ? (
+        {isLoading ? (
+          <div className="classroom-loading">
+            <div className="loading-spinner" />
+            <p>Memuat katalog kelas...</p>
+          </div>
+        ) : filteredCourses.length === 0 ? (
           <div className="empty-state">
             <BookOpen size={40} />
             <h3>Tidak ada kelas yang cocok</h3>
-            <p>Coba gunakan kata kunci pencarian lain atau reset filter kategori.</p>
+            <p>Coba gunakan kata kunci pencarian lain atau reset filter kategori/status.</p>
             <button
               className="button button-primary"
               onClick={() => {
                 setSearch("");
                 setSelectedCategory("All");
                 setSelectedLevel("All");
+                setSelectedStatus("All");
               }}
             >
               Reset Semua Filter
@@ -173,12 +245,29 @@ export default function BelajarPage() {
             {filteredCourses.map((course) => {
               const progress = userProgressMap[course.slug] || 0;
               const isCompleted = progress === 100;
+              const isStarted = progress > 0;
+              const lastLessonId = lastLessonMap[course.slug];
+
+              const directClassroomHref = lastLessonId
+                ? `/kelas/${course.slug}?lesson=${lastLessonId}`
+                : `/kelas/${course.slug}`;
 
               return (
                 <article key={course.id} className="course-card">
                   <div className="card-topline">
                     <span className="course-code">{course.number}</span>
-                    <span className="course-level-badge">{course.level}</span>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      {isCompleted ? (
+                        <span className="badge-role" style={{ background: "#0e2920", color: "#86efac", border: "1px solid #14532d" }}>
+                          Selesai ✓
+                        </span>
+                      ) : isStarted ? (
+                        <span className="badge-role" style={{ background: "#17283c", color: "var(--cyan)", border: "1px solid #1e3a5f" }}>
+                          {progress}% Berjalan
+                        </span>
+                      ) : null}
+                      <span className="course-level-badge">{course.level}</span>
+                    </div>
                   </div>
 
                   <div className="course-category-tag">{course.category}</div>
@@ -190,7 +279,7 @@ export default function BelajarPage() {
                   <p className="course-card-overview">{course.overview}</p>
 
                   {/* Progress bar if started */}
-                  {progress > 0 && (
+                  {isStarted && (
                     <div className="card-progress">
                       <div className="progress-info">
                         <span>Progres Anda</span>
@@ -214,14 +303,12 @@ export default function BelajarPage() {
                     </span>
                   </div>
 
-                  <div className="course-card-action">
-                    <Link href={`/belajar/${course.slug}`} className="course-view-btn">
-                      {progress > 0 ? (
-                        isCompleted ? "Tinjau Kelas Kembali" : "Lanjutkan Belajar"
-                      ) : (
-                        "Lihat Silabus & Detail"
-                      )}
-                      <ArrowUpRight size={15} />
+                  <div className="course-card-action" style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
+                    <Link href={`/belajar/${course.slug}`} className="course-view-btn" style={{ flex: 1 }}>
+                      Silabus <ArrowUpRight size={14} />
+                    </Link>
+                    <Link href={directClassroomHref} className="button button-primary" style={{ padding: "8px 14px", fontSize: "12px" }}>
+                      {isCompleted ? "Ulas Materi" : isStarted ? "Lanjut" : "Mulai"} <Play size={13} />
                     </Link>
                   </div>
                 </article>

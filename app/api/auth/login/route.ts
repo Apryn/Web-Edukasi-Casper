@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { findUserByEmail } from "@/lib/db";
-import { verifyPassword, createToken, COOKIE_NAME } from "@/lib/auth";
+import { verifyPassword, createToken, COOKIE_NAME, sanitizeUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { email, password } = body;
 
-    if (!email || !password) {
+    if (!email || !password || typeof email !== "string" || typeof password !== "string") {
       return NextResponse.json(
         { error: "Email dan kata sandi wajib diisi." },
         { status: 400 }
@@ -39,12 +39,7 @@ export async function POST(req: Request) {
     const res = NextResponse.json({
       success: true,
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
+      user: sanitizeUser(user),
     });
 
     res.cookies.set(COOKIE_NAME, token, {
@@ -56,7 +51,7 @@ export async function POST(req: Request) {
     });
 
     return res;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Login error:", error);
     return NextResponse.json(
       { error: "Terjadi kesalahan internal saat memproses login." },

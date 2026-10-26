@@ -1,4 +1,4 @@
-import { Course } from "./types";
+import type { Course } from "./types.ts";
 
 export const coursesData: Course[] = [
   {
@@ -102,6 +102,18 @@ export const coursesData: Course[] = [
                 correctAnswer: 2,
                 explanation: "Profesional mengontrol risiko nominal dalam dollar (1-2% modal), sehingga leverage tinggi tidak membuat akun rentan margin call.",
               },
+              {
+                id: "q1-3",
+                question: "Kapan risiko likuiditas paling tinggi terjadi bagi retail trader?",
+                options: [
+                  "Saat rilis berita ekonomi 'High Impact' seperti US Non-Farm Payrolls karena pelebaran spread dan slippage",
+                  "Di tengah overlap sesi London dan New York",
+                  "Saat menggunakan chart timeframe harian (D1)",
+                  "Ketika pasar sedang berada dalam kondisi trending sehat",
+                ],
+                correctAnswer: 0,
+                explanation: "Saat rilis berita berdampak besar, likuiditas bisa mengering seketika, menyebabkan spread melebar ekstrem dan order dieksekusi dengan slippage besar.",
+              },
             ],
           },
         ],
@@ -128,6 +140,74 @@ export const coursesData: Course[] = [
               "Jangan trading sembarangan di luar sesi aktif instrumen Anda.",
               "Overlap London-New York menawarkan pergerakan paling terarah.",
               "High dan Low sesi Asia sering menjadi target likuiditas trader institusi.",
+            ],
+          },
+          {
+            id: "l1-5",
+            slug: "video-mekanisme-likuiditas-pasar",
+            title: "Video Panduan: Visualisasi Order Flow & Sesi Pasar",
+            duration: "16 Menit",
+            type: "video",
+            summary: "Simulasi video bagaimana order market menyapu likuiditas resting orders di pasar derivatif global.",
+            content: [
+              "Dalam video pembelajaran ini, kita mendemonstrasikan secara visual apa yang terjadi di balik layar Depth of Market (Order Book) ketika bank sentral atau institusi besar melakukan akumulasi aset.",
+              "Perhatikan bagaimana spread melebar saat transisi sesi perdagangan dan bagaimana ritme pergerakan harga berubah drastis saat pembukaan sesi London.",
+            ],
+            videoUrl: "https://www.youtube.com/embed/b13a7c6oG1s",
+            videoDuration: "16:24",
+            keyTakeaways: [
+              "Order book adalah representasi limit order pasif di pasar.",
+              "Market order agresif adalah motor penggerak harga melintasi spread bid-ask.",
+              "Hindari membuka posisi tepat di detik pembukaan sesi karena spread sering melebar.",
+            ],
+          },
+          {
+            id: "l1-6",
+            slug: "kuis-evaluasi-akhir-fundamentals",
+            title: "Kuis Akhir Kelulusan: Trading Fundamentals",
+            duration: "15 Menit",
+            type: "quiz",
+            summary: "Kuis komprehensif penentu kelulusan kelas Trading Fundamentals (Batas kelulusan: 70%).",
+            content: [
+              "Selesaikan evaluasi akhir ini untuk menguji seluruh konsep likuiditas, manajemen modal, dan karakteristik sesi pasar sebelum beralih ke analisis teknikal.",
+            ],
+            quiz: [
+              {
+                id: "q1-6-1",
+                question: "Kapan jendela waktu dengan likuiditas dan volume tertinggi di pasar finansial global?",
+                options: [
+                  "Sesi Asia pagi hari pukul 06:00 - 09:00 WIB",
+                  "Overlapping sesi London dan New York (pukul 19:00 - 23:00 WIB)",
+                  "Tepat tengah malam setelah penutupan sesi New York",
+                  "Saat pasar akhir pekan hari Sabtu dan Minggu",
+                ],
+                correctAnswer: 1,
+                explanation: "Overlap London dan New York mempertemukan dua pusat keuangan terbesar di dunia sehingga volume dan volatilitas mencapai puncak tertingginya.",
+              },
+              {
+                id: "q1-6-2",
+                question: "Jika trader memiliki saldo $10,000 dan berpegang pada aturan manajemen risiko 1% per transaksi, berapa dollar risiko maksimal per trade?",
+                options: [
+                  "$10",
+                  "$500",
+                  "$100",
+                  "$1,000",
+                ],
+                correctAnswer: 2,
+                explanation: "1% dari $10,000 adalah $100. Stop loss harus dihitung sedemikian rupa sehingga jika tersentuh, kerugian tidak lebih dari $100.",
+              },
+              {
+                id: "q1-6-3",
+                question: "Apa fungsi utama stop loss dalam perencanaan transaksi?",
+                options: [
+                  "Membuat broker bisa mengambil keuntungan trader",
+                  "Membatasi risiko kerugian terukur jika hipotesis pasar terbukti keliru",
+                  "Menjamin akun tidak akan pernah mengalami drawdown",
+                  "Mempercepat target take profit tercapai",
+                ],
+                correctAnswer: 1,
+                explanation: "Stop loss adalah sabuk pengaman trading yang mengeksekusi cut-loss otomatis ketika skenario analisis kita tidak valid.",
+              },
             ],
           },
         ],

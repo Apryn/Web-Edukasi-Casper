@@ -82,6 +82,12 @@ server {
     listen 83;
     server_name _;
 
+    # Blokir akses langsung ke file database, git, dan environment
+    location ~ ^/(data|\.git|\.env|data-backups) {
+        deny all;
+        return 404;
+    }
+
     location / {
         proxy_pass http://localhost:3005;
         proxy_http_version 1.1;

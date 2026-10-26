@@ -17,6 +17,7 @@ import {
   LineChart,
   ShieldCheck,
   User,
+  Video,
 } from "lucide-react";
 
 export function generateStaticParams() {
@@ -183,6 +184,8 @@ export default async function CourseDetailPage({
                       </span>
                       {lesson.type === "quiz" ? (
                         <HelpCircle size={16} className="lesson-type-icon quiz" />
+                      ) : lesson.type === "video" ? (
+                        <Video size={16} className="lesson-type-icon chart" />
                       ) : lesson.type === "chart-study" ? (
                         <LineChart size={16} className="lesson-type-icon chart" />
                       ) : (

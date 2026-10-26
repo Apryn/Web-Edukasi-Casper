@@ -21,12 +21,17 @@ import {
   Sparkles,
   Trophy,
   User,
+  ShieldAlert,
+  Printer,
+  X,
 } from "lucide-react";
+import { Course } from "@/lib/types";
 
 export default function DashboardPage() {
   const allCourses = getAllCourses();
   const [progressMap, setProgressMap] = useState<Record<string, UserCourseProgress>>({});
-  const [currentUser, setCurrentUser] = useState<{ id?: string; name?: string; email?: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id?: string; name?: string; email?: string; role?: string } | null>(null);
+  const [selectedCertCourse, setSelectedCertCourse] = useState<Course | null>(null);
 
   useEffect(() => {
     // 1. Load initial local progress
@@ -121,6 +126,18 @@ export default function DashboardPage() {
             Pantau progres modul, riwayat pelajaran, dan kuis Anda. Data tersinkronisasi otomatis dengan database server Casper.
           </p>
         </div>
+
+        {currentUser?.role === "ADMIN" && (
+          <div className="admin-dashboard-banner">
+            <div className="admin-banner-text">
+              <span className="admin-banner-tag">ADMIN ACCESS</span>
+              <span>Anda masuk sebagai Administrator. Kelola kurikulum, kelas baru, dan data seluruh siswa.</span>
+            </div>
+            <Link href="/admin" className="button button-primary" style={{ padding: "6px 14px", fontSize: "12px" }}>
+              Buka Panel Admin <ArrowRight size={14} />
+            </Link>
+          </div>
+        )}
 
         {/* Highlight Resume Card */}
         {activeCourse && (
@@ -237,6 +254,10 @@ export default function DashboardPage() {
                 p?.completedLessonIds.length || 0
               );
               const isComplete = pct === 100;
+              const courseQuizLessons = course.modules.flatMap((m) => m.lessons).filter((l) => l.type === "quiz");
+              const hasQuiz = courseQuizLessons.length > 0;
+              const allQuizzesPassed = !hasQuiz || courseQuizLessons.every((ql) => (p?.quizScores?.[ql.id] || 0) >= 70);
+              const isEligibleForCertificate = isComplete && allQuizzesPassed;
 
               return (
                 <div key={course.id} className="course-card">
@@ -263,7 +284,33 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="course-card-action">
+                  {(() => {
+                    const quizScores = p?.quizScores ? Object.values(p.quizScores) : [];
+                    const highestScore = quizScores.length > 0 ? Math.max(...quizScores) : null;
+                    if (highestScore !== null) {
+                      return (
+                        <div className={`course-quiz-badge ${highestScore >= 70 ? "passed" : "pending"}`}>
+                          <Trophy size={11} /> Skor Kuis: {highestScore}% ({highestScore >= 70 ? "Lulus" : "Perlu Ulang"})
+                        </div>
+                      );
+                    }
+                    if (hasQuiz) {
+                      return (
+                        <div className="course-quiz-badge pending">
+                          <Trophy size={11} /> Kuis Belum Dikerjakan (Syarat Lulus: $\ge$ 70%)
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {isComplete && !allQuizzesPassed && (
+                    <div className="course-quiz-badge pending" style={{ background: "#281710", borderColor: "#78350f", color: "#fdba74" }}>
+                      <Award size={11} /> Sertifikat tertunda: Kuis wajib lulus $\ge$ 70%
+                    </div>
+                  )}
+
+                  <div className="course-card-action" style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                     <Link
                       href={
                         p?.lastAccessedLessonId
@@ -274,6 +321,16 @@ export default function DashboardPage() {
                     >
                       {isComplete ? "Tinjau Materi" : "Lanjutkan"} <ArrowUpRight size={15} />
                     </Link>
+                    {isEligibleForCertificate && (
+                      <button
+                        onClick={() => setSelectedCertCourse(course)}
+                        className="course-view-btn"
+                        style={{ background: "#162b3a", borderColor: "var(--cyan)", color: "var(--cyan)" }}
+                        title="Buka Sertifikat Kelulusan Resmi"
+                      >
+                        <Award size={14} /> Sertifikat
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -306,6 +363,69 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
+
+      {/* Certificate Modal */}
+      {selectedCertCourse && (
+        <div className="certificate-modal-overlay" onClick={() => setSelectedCertCourse(null)}>
+          <div className="certificate-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="certificate-close-btn"
+              onClick={() => setSelectedCertCourse(null)}
+              title="Tutup"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="certificate-canvas">
+              <div className="cert-brand">
+                <Award size={20} color="var(--cyan)" />
+                <span className="cert-brand-text">SIGNAL CASPER ACADEMY</span>
+              </div>
+
+              <div className="cert-title">SERTIFIKAT KELULUSAN</div>
+              <div className="cert-subtitle">CERTIFICATE OF ACADEMIC COMPLETION</div>
+
+              <div className="cert-presented-to">DIBERIKAN DENGAN BANGGA KEPADA</div>
+              <div className="cert-recipient">{currentUser?.name || "Trader Disiplin"}</div>
+
+              <div className="cert-description">
+                Telah sukses menyelesaikan kurikulum komprehensif, evaluasi pemahaman pasar,
+                dan kuis kelulusan materi dengan predikat memuaskan pada program:
+                <br />
+                <strong style={{ color: "var(--cyan)", display: "block", marginTop: "6px", fontSize: "15px" }}>
+                  {selectedCertCourse.title} ({selectedCertCourse.level})
+                </strong>
+              </div>
+
+              <div className="cert-meta-grid">
+                <div className="cert-meta-item">
+                  <small>KREDENSIAL ID</small>
+                  <strong>CASPER-{(currentUser?.id || "STD").slice(0, 8).toUpperCase()}-{(selectedCertCourse.id || "C").toUpperCase()}</strong>
+                </div>
+                <div className="cert-meta-item">
+                  <small>TANGGAL VERIFIKASI</small>
+                  <strong>{new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="cert-actions">
+              <button
+                className="button button-secondary"
+                onClick={() => setSelectedCertCourse(null)}
+              >
+                Tutup
+              </button>
+              <button
+                className="button button-primary"
+                onClick={() => window.print()}
+              >
+                <Printer size={15} /> Cetak / Unduh PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </main>

@@ -3,12 +3,24 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowUpRight, GraduationCap, LayoutDashboard, LineChart, Menu, X } from "lucide-react";
 
 export default function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [user, setUser] = useState<{ name?: string; role?: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) {
+          setUser(data.user);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -50,13 +62,24 @@ export default function Navbar() {
           <Link href="/dashboard" className={isActive("/dashboard") ? "nav-active" : ""}>
             Dashboard
           </Link>
+          {user?.role === "ADMIN" && (
+            <Link href="/admin" className={isActive("/admin") ? "nav-active" : ""} style={{ color: "var(--cyan)" }}>
+              Admin Panel
+            </Link>
+          )}
           <Link href="/#tools">Tools</Link>
         </nav>
 
         <div className="nav-right-actions">
-          <Link href="/login" className="nav-secondary-link">
-            Masuk
-          </Link>
+          {user ? (
+            <Link href="/dashboard" className="nav-secondary-link" style={{ color: "var(--cyan)" }}>
+              {user.name?.split(" ")[0] || "Akun Saya"}
+            </Link>
+          ) : (
+            <Link href="/login" className="nav-secondary-link">
+              Masuk
+            </Link>
+          )}
           <Link className="nav-cta" href="/belajar">
             Mulai Belajar <ArrowUpRight size={15} />
           </Link>

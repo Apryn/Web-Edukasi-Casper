@@ -14,7 +14,15 @@ echo "=================================================="
 
 cd "$APP_DIR"
 
-echo "▶ [1/4] Pull kode terbaru dari Git (clean sync)..."
+echo "▶ [1/5] Backup database & data persisten..."
+if [ -d "$APP_DIR/data" ]; then
+    mkdir -p "$APP_DIR/data-backups"
+    PRE_UPDATE_BACKUP="$APP_DIR/data-backups/pre-update-$(date +%Y%m%d_%H%M%S).tar.gz"
+    tar -czf "$PRE_UPDATE_BACKUP" -C "$APP_DIR" data/ 2>/dev/null || true
+    echo "  📦 Backup berhasil dibuat di: $PRE_UPDATE_BACKUP"
+fi
+
+echo "▶ [2/5] Pull kode terbaru dari Git (clean sync)..."
 git fetch origin main
 git reset --hard origin/main
 

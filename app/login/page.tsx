@@ -38,7 +38,7 @@ export default function LoginPage() {
       }
 
       router.push("/dashboard");
-    } catch (err: any) {
+    } catch {
       setErrorMsg("Tidak dapat terhubung ke server database.");
       setLoading(false);
     }

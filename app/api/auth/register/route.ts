@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { findUserByEmail, createUser } from "@/lib/db";
-import { hashPassword, createToken, COOKIE_NAME } from "@/lib/auth";
+import { hashPassword, createToken, COOKIE_NAME, sanitizeUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
@@ -15,7 +15,14 @@ export async function POST(req: Request) {
       );
     }
 
-    if (password.length < 6) {
+    if (typeof email !== "string" || !email.includes("@")) {
+      return NextResponse.json(
+        { error: "Format email tidak valid." },
+        { status: 400 }
+      );
+    }
+
+    if (typeof password !== "string" || password.length < 6) {
       return NextResponse.json(
         { error: "Kata sandi minimal 6 karakter." },
         { status: 400 }
@@ -37,7 +44,7 @@ export async function POST(req: Request) {
     const user = createUser({
       id,
       email,
-      name,
+      name: String(name).slice(0, 80),
       passwordHash,
       role: "USER",
     });
@@ -48,15 +55,12 @@ export async function POST(req: Request) {
       role: user.role,
     });
 
+    const safeUser = sanitizeUser(user);
+
     const res = NextResponse.json({
       success: true,
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
+      user: safeUser,
     });
 
     res.cookies.set(COOKIE_NAME, token, {
@@ -68,7 +72,13 @@ export async function POST(req: Request) {
     });
 
     return res;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message.includes("sudah terdaftar")) {
+      return NextResponse.json(
+        { error: "Email sudah terdaftar. Silakan login." },
+        { status: 409 }
+      );
+    }
     console.error("Register error:", error);
     return NextResponse.json(
       { error: "Terjadi kesalahan internal saat mendaftarkan akun." },

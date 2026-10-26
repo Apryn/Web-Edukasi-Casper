@@ -21,5 +21,22 @@ export default async function ClassroomPage({
     notFound();
   }
 
-  return <ClassroomClient course={course} />;
+  // Sanitize quiz questions to ensure answer keys are NEVER leaked to client DOM/props
+  const sanitizedCourse = {
+    ...course,
+    modules: course.modules.map((mod) => ({
+      ...mod,
+      lessons: mod.lessons.map((lesson) => ({
+        ...lesson,
+        quiz: lesson.quiz?.map((q) => ({
+          id: q.id,
+          question: q.question,
+          options: q.options,
+          // correctAnswer and explanation are excluded for client security!
+        })),
+      })),
+    })),
+  };
+
+  return <ClassroomClient course={sanitizedCourse as any} />;
 }

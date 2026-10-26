@@ -1,4 +1,4 @@
-import { UserCourseProgress } from "./types";
+import type { UserCourseProgress } from "./types.ts";
 
 const STORAGE_KEY = "sc_academy_progress";
 

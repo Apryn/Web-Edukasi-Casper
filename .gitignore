@@ -4,5 +4,11 @@ out
 .env*
 .DS_Store
 npm-debug.log*
-data/*.db
-data/*.db-journal
+
+# Database, backups, and user data (keep folder structure with .gitkeep)
+data/*
+!data/.gitkeep
+data-backups/
+*.tsbuildinfo
+
+

@@ -2,32 +2,31 @@
 
 import { useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Course, Lesson, QuizQuestion } from "@/lib/types";
+import { Course, Lesson, QuizSubmissionReview } from "@/lib/types";
 import {
-  getCourseProgress,
   enrollCourse,
   toggleLessonComplete,
-  saveQuizScore,
   calculateCoursePercentage,
+  fetchServerProgress,
 } from "@/lib/progress";
 import {
   ArrowLeft,
   ArrowRight,
-  BookOpen,
+  Award,
   Check,
   CheckCircle2,
   ChevronLeft,
-  ChevronRight,
   Circle,
   HelpCircle,
   LayoutList,
-  LineChart,
+  Play,
   RotateCcw,
-  ShieldCheck,
   Sparkles,
+  Trophy,
+  Video,
   X,
+  AlertCircle,
 } from "lucide-react";
 
 const studyCandles: [number, number, number, number, boolean][] = [
@@ -47,6 +46,13 @@ const studyCandles: [number, number, number, number, boolean][] = [
   [420, 35, 32, 19, true],
   [450, 25, 28, 16, true],
 ];
+
+interface QuizEvalState {
+  score: number;
+  passed: boolean;
+  passingScore: number;
+  review: QuizSubmissionReview[];
+}
 
 function ClassroomInner({ course }: { course: Course }) {
   const searchParams = useSearchParams();
@@ -76,14 +82,23 @@ function ClassroomInner({ course }: { course: Course }) {
   const [completedIds, setCompletedIds] = useState<string[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Quiz state
+  // Server-side Quiz state
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
-  const [submittedQuiz, setSubmittedQuiz] = useState(false);
+  const [isSubmittingQuiz, setIsSubmittingQuiz] = useState(false);
+  const [quizError, setQuizError] = useState<string | null>(null);
+  const [quizEvaluation, setQuizEvaluation] = useState<QuizEvalState | null>(null);
 
   useEffect(() => {
-    // Enroll and load progress
+    // 1. Initial local enrollment
     const p = enrollCourse(course.slug, allLessons[0]?.lesson.id);
     setCompletedIds(p.completedLessonIds);
+
+    // 2. Fetch server database progress if authenticated
+    fetchServerProgress().then((merged) => {
+      if (merged && merged[course.slug]) {
+        setCompletedIds(merged[course.slug].completedLessonIds);
+      }
+    });
 
     // If param changes, update current lesson
     if (lessonIdFromParam && allLessons.some((item) => item.lesson.id === lessonIdFromParam)) {
@@ -94,7 +109,8 @@ function ClassroomInner({ course }: { course: Course }) {
   // Reset quiz state when switching lessons
   useEffect(() => {
     setSelectedAnswers({});
-    setSubmittedQuiz(false);
+    setQuizEvaluation(null);
+    setQuizError(null);
   }, [currentLessonId]);
 
   const currentIndex = allLessons.findIndex((item) => item.lesson.id === currentLessonId);
@@ -107,6 +123,7 @@ function ClassroomInner({ course }: { course: Course }) {
 
   const isCurrentCompleted = completedIds.includes(currentLessonId);
   const progressPercent = calculateCoursePercentage(course.totalLessons, completedIds.length);
+  const isCourseFullyCompleted = progressPercent === 100;
 
   const handleSelectLesson = (lessonId: string) => {
     setCurrentLessonId(lessonId);
@@ -124,29 +141,54 @@ function ClassroomInner({ course }: { course: Course }) {
   };
 
   const handleSelectOption = (questionId: string, optionIdx: number) => {
-    if (submittedQuiz) return;
+    if (quizEvaluation) return; // Locked once evaluated
     setSelectedAnswers((prev) => ({
       ...prev,
       [questionId]: optionIdx,
     }));
   };
 
-  const handleSubmitQuiz = () => {
-    if (!currentLesson?.quiz) return;
-    setSubmittedQuiz(true);
+  // Submit quiz to server for rigorous evaluation
+  const handleSubmitQuiz = async () => {
+    if (!currentLesson?.quiz || isSubmittingQuiz) return;
+    setIsSubmittingQuiz(true);
+    setQuizError(null);
 
-    let correctCount = 0;
-    currentLesson.quiz.forEach((q) => {
-      if (selectedAnswers[q.id] === q.correctAnswer) {
-        correctCount++;
+    try {
+      const res = await fetch("/api/quiz/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseSlug: course.slug,
+          lessonId: currentLesson.id,
+          answers: selectedAnswers,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal mengevaluasi kuis di server.");
       }
-    });
 
-    const score = Math.round((correctCount / currentLesson.quiz.length) * 100);
-    saveQuizScore(course.slug, currentLesson.id, score);
-    setCompletedIds((prev) =>
-      prev.includes(currentLesson.id) ? prev : [...prev, currentLesson.id]
-    );
+      setQuizEvaluation({
+        score: data.score,
+        passed: data.passed,
+        passingScore: data.passingScore,
+        review: data.review,
+      });
+
+      // Update completed lessons if passed
+      if (data.updatedProgress?.completedLessonIds) {
+        setCompletedIds(data.updatedProgress.completedLessonIds);
+      } else if (data.passed) {
+        setCompletedIds((prev) => (prev.includes(currentLesson.id) ? prev : [...prev, currentLesson.id]));
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Terjadi kesalahan saat memproses kuis.";
+      setQuizError(msg);
+    } finally {
+      setIsSubmittingQuiz(false);
+    }
   };
 
   return (
@@ -170,7 +212,7 @@ function ClassroomInner({ course }: { course: Course }) {
 
         <div className="classroom-actions">
           <Link href="/dashboard" className="exit-btn">
-            Dashboard
+            Dashboard Siswa
           </Link>
           <button
             className="sidebar-toggle-btn"
@@ -226,7 +268,13 @@ function ClassroomInner({ course }: { course: Course }) {
                         </span>
                         <span className="lesson-label">{lesson.title}</span>
                         <span className="lesson-badge">
-                          {lesson.type === "quiz" ? "Kuis" : lesson.duration}
+                          {lesson.type === "quiz" ? (
+                            "Kuis"
+                          ) : lesson.type === "video" ? (
+                            "Video"
+                          ) : (
+                            lesson.duration
+                          )}
                         </span>
                       </button>
                     );
@@ -252,6 +300,29 @@ function ClassroomInner({ course }: { course: Course }) {
               <h1>{currentLesson?.title}</h1>
               <p className="lesson-summary-lead">{currentLesson?.summary}</p>
             </div>
+
+            {/* Video Player if Lesson has Video */}
+            {(currentLesson?.type === "video" || currentLesson?.videoUrl) && (
+              <div className="video-lesson-box">
+                <div className="video-iframe-wrap">
+                  <iframe
+                    src={currentLesson.videoUrl || "https://www.youtube.com/embed/b13a7c6oG1s"}
+                    title={currentLesson.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+                <div className="video-meta-bar">
+                  <div className="video-meta-info">
+                    <Video size={16} />
+                    <span>Materi Video Pembelajaran Terverifikasi</span>
+                  </div>
+                  <span className="video-duration-badge">
+                    Durasi: {currentLesson.videoDuration || currentLesson.duration}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Reading Content */}
             <div className="lesson-article">
@@ -344,21 +415,63 @@ function ClassroomInner({ course }: { course: Course }) {
               </div>
             )}
 
-            {/* Interactive Quiz if Lesson has Quiz */}
+            {/* Interactive Server-Side Quiz */}
             {currentLesson?.quiz && currentLesson.quiz.length > 0 && (
               <div className="quiz-container">
                 <div className="quiz-header">
                   <HelpCircle size={20} />
                   <div>
-                    <h3>Kuis Evaluasi Pemahaman</h3>
-                    <p>Pilih jawaban yang paling tepat untuk menguji penguasaan materi Anda.</p>
+                    <h3>Kuis Evaluasi Pemahaman (Server-Grade)</h3>
+                    <p>
+                      Pilih jawaban untuk setiap pertanyaan. Jawaban dinilai secara langsung di server
+                      dengan batas kelulusan 70%.
+                    </p>
                   </div>
                 </div>
+
+                {quizError && (
+                  <div className="auth-error-alert">
+                    <AlertCircle size={16} />
+                    <span>{quizError}</span>
+                  </div>
+                )}
+
+                {/* Evaluation Banner if evaluated */}
+                {quizEvaluation && (
+                  <div
+                    className={`quiz-eval-banner ${
+                      quizEvaluation.passed ? "passed" : "failed"
+                    }`}
+                  >
+                    <div>
+                      <div className="quiz-eval-title">
+                        {quizEvaluation.passed ? (
+                          <>
+                            <CheckCircle2 size={18} /> Selamat, Anda Lulus Evaluasi!
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle size={18} /> Belum Memenuhi Kriteria Kelulusan
+                          </>
+                        )}
+                      </div>
+                      <small style={{ display: "block", marginTop: "4px" }}>
+                        Batas kelulusan minimum: {quizEvaluation.passingScore}%.{" "}
+                        {quizEvaluation.passed
+                          ? "Progres materi otomatis tercatat selesai."
+                          : "Silakan pelajari kembali materi di atas dan ulangi kuis."}
+                      </small>
+                    </div>
+                    <div className="quiz-eval-score">{quizEvaluation.score}%</div>
+                  </div>
+                )}
 
                 <div className="quiz-questions">
                   {currentLesson.quiz.map((q, qIdx) => {
                     const selected = selectedAnswers[q.id];
-                    const isCorrect = selected === q.correctAnswer;
+                    const reviewItem = quizEvaluation?.review.find(
+                      (r) => r.questionId === q.id
+                    );
 
                     return (
                       <div key={q.id} className="quiz-card">
@@ -371,10 +484,10 @@ function ClassroomInner({ course }: { course: Course }) {
                             if (selected === optIdx) {
                               optionClass += " selected";
                             }
-                            if (submittedQuiz) {
-                              if (optIdx === q.correctAnswer) {
+                            if (reviewItem) {
+                              if (optIdx === reviewItem.correctAnswer) {
                                 optionClass += " correct";
-                              } else if (selected === optIdx) {
+                              } else if (selected === optIdx && !reviewItem.isCorrect) {
                                 optionClass += " wrong";
                               }
                             }
@@ -384,7 +497,7 @@ function ClassroomInner({ course }: { course: Course }) {
                                 key={optIdx}
                                 className={optionClass}
                                 onClick={() => handleSelectOption(q.id, optIdx)}
-                                disabled={submittedQuiz}
+                                disabled={Boolean(quizEvaluation) || isSubmittingQuiz}
                               >
                                 <span className="opt-letter">
                                   {String.fromCharCode(65 + optIdx)}
@@ -395,12 +508,20 @@ function ClassroomInner({ course }: { course: Course }) {
                           })}
                         </div>
 
-                        {submittedQuiz && (
+                        {reviewItem && (
                           <div
-                            className={`quiz-explanation ${isCorrect ? "correct" : "wrong"}`}
+                            className={`quiz-explanation ${
+                              reviewItem.isCorrect ? "correct" : "wrong"
+                            }`}
                           >
-                            <strong>{isCorrect ? "✓ Jawaban Benar!" : "✕ Jawaban Kurang Tepat"}</strong>
-                            <p>{q.explanation}</p>
+                            <strong>
+                              {reviewItem.isCorrect
+                                ? "✓ Jawaban Benar!"
+                                : `✕ Kurang Tepat (Jawaban yang benar: ${String.fromCharCode(
+                                    65 + reviewItem.correctAnswer
+                                  )})`}
+                            </strong>
+                            <p>{reviewItem.explanation}</p>
                           </div>
                         )}
                       </div>
@@ -408,25 +529,32 @@ function ClassroomInner({ course }: { course: Course }) {
                   })}
                 </div>
 
-                {!submittedQuiz ? (
+                {!quizEvaluation ? (
                   <button
                     className="button button-primary quiz-submit-btn"
                     onClick={handleSubmitQuiz}
                     disabled={
+                      isSubmittingQuiz ||
                       Object.keys(selectedAnswers).length < currentLesson.quiz.length
                     }
                   >
-                    Kirim Jawaban &amp; Cek Hasil <ArrowRight size={16} />
+                    {isSubmittingQuiz ? (
+                      "Mengevaluasi di Server..."
+                    ) : (
+                      <>
+                        Kirim &amp; Evaluasi Jawaban <ArrowRight size={16} />
+                      </>
+                    )}
                   </button>
                 ) : (
                   <div className="quiz-submitted-result">
                     <span className="quiz-done-badge">
-                      <CheckCircle2 size={16} /> Skor Kuis Tersimpan
+                      <CheckCircle2 size={16} /> Hasil Evaluasi Tersimpan di Database
                     </span>
                     <button
                       className="text-link"
                       onClick={() => {
-                        setSubmittedQuiz(false);
+                        setQuizEvaluation(null);
                         setSelectedAnswers({});
                       }}
                     >
@@ -434,6 +562,21 @@ function ClassroomInner({ course }: { course: Course }) {
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Course Completion Celebration Card */}
+            {isCourseFullyCompleted && (
+              <div className="course-completed-card">
+                <Trophy size={48} className="trophy-icon" />
+                <h3>Selamat! Anda Telah Menyelesaikan Kelas Ini</h3>
+                <p>
+                  Seluruh materi dan evaluasi kuis pada kelas <strong>{course.title}</strong> telah
+                  berhasil Anda selesaikan. Buka dashboard untuk meninjau status kelulusan Anda.
+                </p>
+                <Link href="/dashboard" className="button button-primary">
+                  <Award size={16} /> Buka Dashboard Siswa
+                </Link>
               </div>
             )}
 
@@ -455,20 +598,42 @@ function ClassroomInner({ course }: { course: Course }) {
               </div>
 
               <div className="center-complete-action">
-                <button
-                  className={`complete-toggle-btn ${isCurrentCompleted ? "completed" : ""}`}
-                  onClick={handleToggleComplete}
-                >
-                  {isCurrentCompleted ? (
-                    <>
-                      <Check size={16} /> Sudah Selesai
-                    </>
-                  ) : (
-                    <>
-                      <Circle size={16} /> Tandai Selesai
-                    </>
-                  )}
-                </button>
+                {currentLesson?.type === "quiz" ? (
+                  <div
+                    className={`complete-toggle-btn ${isCurrentCompleted ? "completed" : ""}`}
+                    style={{ cursor: isCurrentCompleted ? "default" : "not-allowed", opacity: isCurrentCompleted ? 1 : 0.8 }}
+                    title={
+                      isCurrentCompleted
+                        ? "Kuis telah diselesaikan dan lulus verifikasi server."
+                        : "Selesaikan dan lulus kuis di atas dengan skor minimal 70%."
+                    }
+                  >
+                    {isCurrentCompleted ? (
+                      <>
+                        <Check size={16} /> Kuis Lulus Terverifikasi
+                      </>
+                    ) : (
+                      <>
+                        <Circle size={16} /> Wajib Lulus Kuis (Min 70%)
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    className={`complete-toggle-btn ${isCurrentCompleted ? "completed" : ""}`}
+                    onClick={handleToggleComplete}
+                  >
+                    {isCurrentCompleted ? (
+                      <>
+                        <Check size={16} /> Sudah Selesai
+                      </>
+                    ) : (
+                      <>
+                        <Circle size={16} /> Tandai Selesai
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
 
               <div>
@@ -476,7 +641,7 @@ function ClassroomInner({ course }: { course: Course }) {
                   <button
                     className="nav-btn next"
                     onClick={() => {
-                      if (!isCurrentCompleted) {
+                      if (!isCurrentCompleted && currentLesson?.type !== "quiz") {
                         handleToggleComplete();
                       }
                       handleSelectLesson(nextLesson.id);

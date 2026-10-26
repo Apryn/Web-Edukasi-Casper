@@ -14,12 +14,27 @@ export interface QuizQuestion {
   explanation: string;
 }
 
+export interface PublicQuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+}
+
+export interface QuizSubmissionReview {
+  questionId: string;
+  question: string;
+  selectedAnswer: number;
+  correctAnswer: number;
+  isCorrect: boolean;
+  explanation: string;
+}
+
 export interface Lesson {
   id: string;
   slug: string;
   title: string;
   duration: string; // e.g. "10 Menit"
-  type: 'reading' | 'chart-study' | 'quiz';
+  type: 'reading' | 'chart-study' | 'quiz' | 'video' | 'diagram';
   summary: string;
   content: string[]; // Structured paragraphs
   keyTakeaways?: string[];
@@ -29,6 +44,8 @@ export interface Lesson {
     timeframe: string;
     bias: 'Bullish' | 'Bearish' | 'Neutral';
   };
+  videoUrl?: string; // YouTube or direct MP4 URL
+  videoDuration?: string;
   quiz?: QuizQuestion[];
 }
 
