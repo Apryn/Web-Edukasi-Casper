@@ -25,7 +25,14 @@ import {
 } from "../lib/db.ts";
 
 // Auth & Session helpers
-import { createToken, isAdmin, sanitizeUser } from "../lib/auth.ts";
+import {
+  createToken,
+  verifyToken,
+  getJwtSecret,
+  shouldUseSecureCookie,
+  isAdmin,
+  sanitizeUser,
+} from "../lib/auth.ts";
 
 describe("Signal Casper Academy - Comprehensive End-to-End System Tests", () => {
   const dataDir = path.join(process.cwd(), "data");
@@ -452,5 +459,198 @@ describe("Signal Casper Academy - Comprehensive End-to-End System Tests", () => 
 
     assert.equal(created.role, "USER", "User baru dari registrasi publik harus selalu memiliki role USER");
     assert.equal(isAdmin(created), false, "User baru tidak boleh menjadi admin");
+  });
+
+  // 14. Keamanan COOKIE_SECURE di Production & Staging HTTP
+  test("14. COOKIE_SECURE default true di production dan hanya false jika diset eksplisit", () => {
+    const origNodeEnv = process.env.NODE_ENV;
+    const origCookieSecure = process.env.COOKIE_SECURE;
+
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.COOKIE_SECURE;
+      assert.equal(
+        shouldUseSecureCookie(),
+        true,
+        "Default production wajib menggunakan Secure Cookie (true)"
+      );
+
+      process.env.COOKIE_SECURE = "true";
+      assert.equal(
+        shouldUseSecureCookie(),
+        true,
+        "COOKIE_SECURE=true di production harus menghasilkan true"
+      );
+
+      process.env.COOKIE_SECURE = "false";
+      assert.equal(
+        shouldUseSecureCookie(),
+        false,
+        "COOKIE_SECURE=false eksplisit di production mengizinkan mode staging HTTP sementara"
+      );
+    } finally {
+      if (origNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = origNodeEnv;
+
+      if (origCookieSecure === undefined) delete process.env.COOKIE_SECURE;
+      else process.env.COOKIE_SECURE = origCookieSecure;
+    }
+  });
+
+  // 15. Penegakan Ketat JWT_SECRET di Production (Menolak Fallback & Secret Lemah)
+  test("15. Production menolak fallback JWT_SECRET atau secret pendek (< 32 karakter)", () => {
+    const origNodeEnv = process.env.NODE_ENV;
+    const origJwtSecret = process.env.JWT_SECRET;
+
+    try {
+      process.env.NODE_ENV = "production";
+
+      // 1. Tanpa JWT_SECRET -> harus ditolak
+      delete process.env.JWT_SECRET;
+      assert.throws(
+        () => getJwtSecret(),
+        /JWT_SECRET wajib tersedia/,
+        "Production tanpa JWT_SECRET harus melempar error"
+      );
+
+      // 2. Menggunakan legacy fallback secret -> harus ditolak
+      process.env.JWT_SECRET = "casper-academy-secret-2026-production-v1";
+      assert.throws(
+        () => getJwtSecret(),
+        /dilarang menggunakan fallback/,
+        "Production dengan legacy fallback secret harus ditolak"
+      );
+
+      // 3. Menggunakan secret pendek (< 32 karakter) -> harus ditolak
+      process.env.JWT_SECRET = "terlalu-pendek-123";
+      assert.throws(
+        () => getJwtSecret(),
+        /minimal 32 karakter/,
+        "Production dengan secret < 32 karakter harus ditolak"
+      );
+
+      // 4. Menggunakan secret acak 256-bit (64 hex chars) -> diterima & valid
+      process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex");
+      const token = createToken({
+        userId: "u-prod-1",
+        email: "admin@casper.com",
+        role: "ADMIN",
+      });
+      const verified = verifyToken(token);
+      assert.ok(verified, "Token dengan JWT_SECRET 256-bit harus valid");
+      assert.equal(verified.userId, "u-prod-1");
+    } finally {
+      if (origNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = origNodeEnv;
+
+      if (origJwtSecret === undefined) delete process.env.JWT_SECRET;
+      else process.env.JWT_SECRET = origJwtSecret;
+    }
+  });
+
+  // 16. Audit Kompatibilitas Migrasi Database Admin (data/academy.json)
+  test("16. Skema data/academy.json siap migrasi: hanya berisi akun admin apryn@casper.com, progres utuh, dan kompatibel penuh", () => {
+    assert.ok(pristineSnapshot, "File data/academy.json harus tersedia");
+    const parsed = JSON.parse(pristineSnapshot);
+
+    // Validasi skema terhadap validator kode terbaru
+    assert.equal(isValidDatabaseSchema(parsed), true, "Skema academy.json harus sesuai dengan kode terbaru");
+    assert.ok(Array.isArray(parsed.custom_courses), "Field custom_courses harus berupa array");
+
+    // Pastikan tepat 1 user (admin apryn@casper.com) dan tidak ada akun pengujian
+    assert.equal(parsed.users.length, 1, "Database migrasi harus berisi tepat 1 akun");
+    const adminUser = parsed.users[0];
+    assert.equal(adminUser.id, "24e81fbb-6ace-4bae-a7cd-8d19a7093b2e");
+    assert.equal(adminUser.email, "apryn@casper.com");
+    assert.equal(adminUser.role, "ADMIN");
+    assert.equal(typeof adminUser.password_hash, "string");
+    assert.ok(
+      adminUser.password_hash.startsWith("$2b$") && adminUser.password_hash.length === 60,
+      "Format hash bcrypt akun admin harus valid tanpa menampilkan nilainya"
+    );
+    assert.equal(
+      findUserByEmail("traderpro@signalcasper.test"),
+      null,
+      "Akun pengujian traderpro@signalcasper.test tidak boleh ada"
+    );
+
+    // Pastikan akun admin dapat dibaca oleh helper DB & Auth terbaru
+    const dbAdmin = findUserByEmail("apryn@casper.com");
+    assert.ok(dbAdmin, "findUserByEmail harus menemukan akun admin");
+    assert.equal(isAdmin(dbAdmin), true, "isAdmin harus mengenali role ADMIN");
+
+    const safeAdmin = sanitizeUser(dbAdmin);
+    assert.equal("password_hash" in safeAdmin, false, "sanitizeUser wajib menghapus password_hash");
+
+    // Pastikan progres belajar admin tetap utuh dan terbaca normal
+    assert.equal(parsed.course_progress.length, 1, "Harus ada tepat 1 entri progres milik admin");
+    assert.equal(parsed.quiz_submissions.length, 0, "Tidak boleh ada submission kuis pengujian");
+
+    const adminProgress = getUserCourseProgress(dbAdmin.id, "trading-fundamentals");
+    assert.ok(adminProgress, "Progres trading-fundamentals milik admin harus terbaca");
+    const parseField = (val) => (typeof val === "string" ? JSON.parse(val) : val);
+    const parsedLessons = parseField(adminProgress.completed_lesson_ids);
+    const parsedScores = parseField(adminProgress.quiz_scores);
+    assert.ok(Array.isArray(parsedLessons), "completed_lesson_ids setelah diparse harus berupa Array");
+    assert.deepEqual(parsedLessons, ["l1-1", "l1-2", "l1-3"]);
+    assert.equal(typeof parsedScores, "object");
+    assert.deepEqual(parsedScores, { "l1-3": 100 });
+    assert.equal(adminProgress.last_lesson_id, "l1-3");
+  });
+
+  // 17. Pergantian JWT_SECRET tidak mengubah data akun/progres dan admin tetap bisa login ulang
+  test("17. Rotasi JWT_SECRET hanya membatalkan token sesi lama tanpa mengubah data akun atau progres admin", () => {
+    const origNodeEnv = process.env.NODE_ENV;
+    const origJwtSecret = process.env.JWT_SECRET;
+
+    try {
+      process.env.NODE_ENV = "production";
+      const secretLama = crypto.randomBytes(32).toString("hex");
+      const secretBaru = crypto.randomBytes(32).toString("hex");
+
+      const adminBefore = findUserByEmail("apryn@casper.com");
+      const progressBefore = getUserCourseProgress(adminBefore.id, "trading-fundamentals");
+      assert.ok(adminBefore && progressBefore, "Data admin sebelum rotasi JWT_SECRET harus ada");
+
+      // Terbitkan token dengan secret lama
+      process.env.JWT_SECRET = secretLama;
+      const oldToken = createToken({
+        userId: adminBefore.id,
+        email: adminBefore.email,
+        role: adminBefore.role,
+      });
+      assert.ok(verifyToken(oldToken), "Token lama valid pada secret lama");
+
+      // Ganti JWT_SECRET ke secret baru
+      process.env.JWT_SECRET = secretBaru;
+      assert.equal(verifyToken(oldToken), null, "Token lama otomatis tidak berlaku setelah rotasi JWT_SECRET");
+
+      // Pastikan data akun, password_hash, dan progres admin sama sekali tidak berubah
+      const adminAfter = findUserByEmail("apryn@casper.com");
+      const progressAfter = getUserCourseProgress(adminAfter.id, "trading-fundamentals");
+      assert.equal(adminAfter.id, adminBefore.id);
+      assert.equal(adminAfter.email, "apryn@casper.com");
+      assert.equal(adminAfter.role, "ADMIN");
+      assert.equal(adminAfter.password_hash, adminBefore.password_hash, "Hash password admin tidak boleh berubah");
+      assert.equal(progressAfter.completed_lesson_ids, progressBefore.completed_lesson_ids);
+      assert.equal(progressAfter.quiz_scores, progressBefore.quiz_scores);
+
+      // Pastikan penerbitan token login baru dengan secret baru berhasil
+      const newToken = createToken({
+        userId: adminAfter.id,
+        email: adminAfter.email,
+        role: adminAfter.role,
+      });
+      const verifiedNew = verifyToken(newToken);
+      assert.ok(verifiedNew, "Admin dapat memperoleh sesi baru yang valid dengan JWT_SECRET baru");
+      assert.equal(verifiedNew.email, "apryn@casper.com");
+      assert.equal(verifiedNew.role, "ADMIN");
+    } finally {
+      if (origNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = origNodeEnv;
+
+      if (origJwtSecret === undefined) delete process.env.JWT_SECRET;
+      else process.env.JWT_SECRET = origJwtSecret;
+    }
   });
 });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findUserByEmail } from "@/lib/db";
-import { verifyPassword, createToken, COOKIE_NAME, sanitizeUser } from "@/lib/auth";
+import { verifyPassword, createToken, COOKIE_NAME, sanitizeUser, shouldUseSecureCookie } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
     res.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: shouldUseSecureCookie(),
       sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60,
       path: "/",

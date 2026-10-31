@@ -2,14 +2,33 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { findUserById, type DbUser } from "./db.ts";
 
-const DEFAULT_SECRET = "casper-academy-secret-2026-production-v1";
-const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_SECRET;
+const DEV_FALLBACK_SECRET = "casper-academy-dev-only-secret-local";
+const FORBIDDEN_PRODUCTION_SECRETS = new Set([
+  "casper-academy-secret-2026-production-v1",
+  DEV_FALLBACK_SECRET,
+]);
 const COOKIE_NAME = "sc_auth_token";
 
-if (process.env.NODE_ENV === "production" && (!process.env.JWT_SECRET || JWT_SECRET === DEFAULT_SECRET)) {
-  console.warn(
-    "[SECURITY WARNING] JWT_SECRET belum diset di environment variables. Disarankan menambahkan JWT_SECRET yang kuat di file .env server produksi."
-  );
+export function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET?.trim();
+  if (process.env.NODE_ENV === "production") {
+    if (!secret || secret.length < 32 || FORBIDDEN_PRODUCTION_SECRETS.has(secret)) {
+      throw new Error(
+        "[CRITICAL SECURITY] JWT_SECRET wajib tersedia di environment production (minimal 32 karakter) dan dilarang menggunakan fallback secret."
+      );
+    }
+    return secret;
+  }
+  return secret || DEV_FALLBACK_SECRET;
+}
+
+export function shouldUseSecureCookie(): boolean {
+  if (process.env.NODE_ENV === "production") {
+    // Default production tetap wajib Secure (true).
+    // Hanya bernilai false jika COOKIE_SECURE="false" diset secara eksplisit.
+    return process.env.COOKIE_SECURE !== "false";
+  }
+  return process.env.COOKIE_SECURE === "true";
 }
 
 export interface TokenPayload {
@@ -52,12 +71,14 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export function createToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "30d" });
+  const secret = getJwtSecret();
+  return jwt.sign(payload, secret, { expiresIn: "30d" });
 }
 
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    const secret = getJwtSecret();
+    return jwt.verify(token, secret) as TokenPayload;
   } catch {
     return null;
   }
