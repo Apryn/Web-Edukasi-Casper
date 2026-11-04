@@ -4,9 +4,11 @@ import {
   getAllUsersForAdmin,
   getAllQuizSubmissionsForAdmin,
   getDatabaseHealth,
-  getCustomCourses,
 } from "@/lib/db";
 import { getAllCourses } from "@/lib/courses-data";
+import { listAdminCourses } from "@/lib/admin-course-service";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const user = await getSessionUser(req);
@@ -23,14 +25,21 @@ export async function GET(req: Request) {
     const users = getAllUsersForAdmin();
     const quizSubmissions = getAllQuizSubmissionsForAdmin();
     const health = getDatabaseHealth();
-    const staticCourses = getAllCourses();
-    const customCourses = getCustomCourses();
+    const publishedCourses = getAllCourses();
+    const adminCoursesResult = listAdminCourses(user);
+    const allAdminCourses = adminCoursesResult.ok && adminCoursesResult.data
+      ? adminCoursesResult.data.courses
+      : publishedCourses;
+    const auditLogs = adminCoursesResult.ok && adminCoursesResult.data
+      ? adminCoursesResult.data.auditLogs
+      : [];
 
     return NextResponse.json({
       success: true,
       stats: {
         totalUsers: users.length,
-        totalCourses: staticCourses.length + customCourses.length,
+        totalCourses: publishedCourses.length,
+        totalManagedCourses: allAdminCourses.length,
         totalQuizSubmissions: quizSubmissions.length,
         databaseStatus: health.status,
         backupCount: health.backupCount,
@@ -39,7 +48,8 @@ export async function GET(req: Request) {
       health,
       users: users.slice(-20).reverse(), // 20 most recent
       recentSubmissions: quizSubmissions.slice(-20).reverse(),
-      courses: [...staticCourses, ...customCourses],
+      courses: allAdminCourses,
+      auditLogs,
     });
   } catch (err: unknown) {
     console.error("Admin overview error:", err);

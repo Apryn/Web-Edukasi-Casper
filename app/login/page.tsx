@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { setAuthenticatedSessionUser } from "@/lib/progress";
 import { ArrowLeft, ArrowRight, Lock, Mail, ShieldCheck, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
@@ -32,9 +33,9 @@ export default function LoginPage() {
         return;
       }
 
-      // Store local session info for display
-      if (typeof window !== "undefined") {
-        localStorage.setItem("sc_user_session", JSON.stringify(data.user));
+      // Isolate progress storage for this user and clear any previous account cache
+      if (data.user) {
+        setAuthenticatedSessionUser(data.user);
       }
 
       router.push("/dashboard");

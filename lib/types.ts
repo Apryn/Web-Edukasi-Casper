@@ -6,6 +6,28 @@ export type CourseCategory =
   | 'Risk & Psychology'
   | 'Specialized Asset';
 
+export type CoursePublicationStatus = 'draft' | 'published' | 'archived';
+
+export type ContentBlockType =
+  | 'heading'
+  | 'paragraph'
+  | 'list'
+  | 'callout'
+  | 'image';
+
+export interface LessonContentBlock {
+  id: string;
+  type: ContentBlockType;
+  text?: string;
+  level?: 2 | 3;
+  style?: 'bullet' | 'ordered';
+  items?: string[];
+  variant?: 'info' | 'warning' | 'tip';
+  imageUrl?: string;
+  imageAlt?: string;
+  caption?: string;
+}
+
 export interface QuizQuestion {
   id: string;
   question: string;
@@ -29,6 +51,17 @@ export interface QuizSubmissionReview {
   explanation: string;
 }
 
+export type VisualDiagramType =
+  | 'liquidity-orderbook'
+  | 'candlestick-anatomy'
+  | 'market-structure-bos-choch'
+  | 'snr-zones-sbr-rbs'
+  | 'confluence-workflow'
+  | 'xauusd-macro-session'
+  | 'position-sizing-rrr'
+  | 'psychology-cycle'
+  | 'journal-expectancy';
+
 export interface Lesson {
   id: string;
   slug: string;
@@ -36,8 +69,16 @@ export interface Lesson {
   duration: string; // e.g. "10 Menit"
   type: 'reading' | 'chart-study' | 'quiz' | 'video' | 'diagram';
   summary: string;
-  content: string[]; // Structured paragraphs
+  learningObjectives?: string[];
+  content: string[]; // Deep conceptual explanation paragraphs
+  contentBlocks?: LessonContentBlock[];
+  applicationExample?: string;
+  caseStudy?: string;
+  practicalSteps?: string[];
+  commonMistakes?: string[];
   keyTakeaways?: string[];
+  references?: string[];
+  visualDiagram?: VisualDiagramType;
   chartData?: {
     title: string;
     description: string;
@@ -46,6 +87,7 @@ export interface Lesson {
   };
   videoUrl?: string; // YouTube or direct MP4 URL
   videoDuration?: string;
+  passingScore?: number;
   quiz?: QuizQuestion[];
 }
 
@@ -53,6 +95,7 @@ export interface CourseModule {
   id: string;
   title: string;
   description: string;
+  order?: number;
   lessons: Lesson[];
 }
 
@@ -66,6 +109,12 @@ export interface Course {
   level: CourseLevel;
   duration: string; // e.g. "3 Jam"
   totalLessons: number;
+  status?: CoursePublicationStatus;
+  order?: number;
+  isStaticBaseline?: boolean;
+  isOverridden?: boolean;
+  thumbnailUrl?: string;
+  coverUrl?: string;
   featured?: boolean;
   instructor: {
     name: string;
@@ -74,8 +123,35 @@ export interface Course {
   };
   overview: string;
   objectives: string[];
+  competencies?: string[];
   prerequisites: string[];
+  courseSummary?: string[];
+  references?: string[];
+  updatedAt?: string;
+  updatedBy?: string;
   modules: CourseModule[];
+}
+
+export type AdminAuditAction =
+  | 'COURSE_CREATE'
+  | 'COURSE_UPDATE'
+  | 'COURSE_STATUS_CHANGE'
+  | 'COURSE_REORDER'
+  | 'COURSE_RESET_BASELINE'
+  | 'COURSE_DELETE'
+  | 'MODULE_MUTATION'
+  | 'LESSON_MUTATION'
+  | 'QUIZ_MUTATION';
+
+export interface AdminAuditLogEntry {
+  id: string;
+  admin_id: string;
+  admin_email: string;
+  action: AdminAuditAction;
+  target_course_id: string;
+  target_course_slug: string;
+  summary: string;
+  created_at: string;
 }
 
 export interface UserCourseProgress {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { setAuthenticatedSessionUser } from "@/lib/progress";
 import { AlertCircle, ArrowLeft, ArrowRight, Lock, Mail, ShieldCheck, User } from "lucide-react";
 
 export default function RegisterPage() {
@@ -33,8 +34,8 @@ export default function RegisterPage() {
         return;
       }
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem("sc_user_session", JSON.stringify(data.user));
+      if (data.user) {
+        setAuthenticatedSessionUser(data.user);
       }
 
       router.push("/dashboard");

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================
 #   SIGNAL CASPER - UPDATE APP DI VPS (SAFE DEPLOYMENT)
-#   Usage di VPS: bash /var/www/casper-web/deploy/update.sh
+#   Kompatibel dijalankan dari commit 515ce00 maupun terbaru:
+#     cp /var/www/casper-web/deploy/update.sh /tmp/casper-safe-update.sh
+#     bash /tmp/casper-safe-update.sh
+#   Atau langsung:
+#     bash /var/www/casper-web/deploy/update.sh
 # =============================================================
 
 set -euo pipefail
@@ -27,7 +31,8 @@ cd "$APP_DIR"
 
 if ! pm2 describe casper-web >/dev/null 2>&1; then
     echo "❌ Proses PM2 'casper-web' tidak ditemukan/terdaftar di PM2!"
-    echo "   Menolak membuat proses PM2 baru secara otomatis. Periksa 'pm2 status' terlebih dahulu."
+    echo "   Menolak membuat proses PM2 baru secara otomatis dan tidak menyentuh proses PM2 lain."
+    echo "   Periksa 'pm2 status' secara manual terlebih dahulu."
     exit 1
 fi
 
@@ -51,13 +56,25 @@ node -e '
     console.error("❌ JWT_SECRET di .env.production tidak valid, kurang dari 32 karakter, atau menggunakan fallback secret!");
     process.exit(1);
   }
+  const cookieLine = lines.find((l) => l.startsWith("COOKIE_SECURE="));
+  const cookieVal = cookieLine ? cookieLine.slice("COOKIE_SECURE=".length).trim() : "true";
   console.log("   .env.production & PM2 casper-web tervalidasi (panjang JWT_SECRET:", secret.length, "karakter).");
+  if (cookieVal === "false") {
+    console.warn("   ⚠️ [PERINGATAN KEAMANAN] COOKIE_SECURE=false aktif di .env.production!");
+    console.warn("      Konfigurasi ini HANYA untuk pengujian sementara melalui HTTP dan TIDAK AMAN untuk pengguna publik.");
+    console.warn("      Jangan gunakan untuk pengguna sungguhan. Segera aktifkan HTTPS dan ubah ke COOKIE_SECURE=true.");
+  }
 ' "$APP_DIR/.env.production"
 
-# 2. Validasi database production & izin akses direktori
-echo "▶ [2/9] Memvalidasi database production ($DB_FILE) & permission..."
-if [ ! -d "$DATA_DIR" ] || [ ! -s "$DB_FILE" ]; then
-    echo "❌ Database $DB_FILE tidak ditemukan atau kosong! Update dibatalkan."
+# 2. Validasi struktural database production & prosedur migrasi aman (tanpa menimpa otomatis)
+echo "▶ [2/9] Memeriksa struktur database production ($DB_FILE) & izin akses..."
+if [ ! -d "$DATA_DIR" ] || [ ! -f "$DB_FILE" ] || [ ! -s "$DB_FILE" ]; then
+    echo "❌ [STATUS DB: KOSONG / BELUM ADA] File $DB_FILE tidak ditemukan atau berukuran 0 byte!"
+    echo "   Sistem menolak membuat atau menimpa database produksi secara otomatis."
+    echo "   Instruksi pemeriksaan & migrasi manual:"
+    echo "   1. Periksa isi direktori: ls -la $DATA_DIR"
+    echo "   2. Salin database seed yang sudah terverifikasi ke $DB_FILE (chmod 600 $DB_FILE)"
+    echo "   3. Jalankan ulang skrip ini setelah database terverifikasi."
     exit 1
 fi
 chmod 700 "$DATA_DIR"
@@ -65,38 +82,104 @@ chmod 600 "$DB_FILE"
 
 node -e '
   const fs = require("fs");
-  const db = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+  const dbPath = process.argv[1];
+  let db;
+  try {
+    db = JSON.parse(fs.readFileSync(dbPath, "utf8"));
+  } catch {
+    console.error("❌ [STATUS DB: KORUP / JSON TIDAK VALID] File database tidak dapat diparse sebagai JSON!");
+    console.error("   Sistem menolak menimpa database yang ada. Periksa secara manual atau gunakan deploy/restore-db.sh.");
+    process.exit(1);
+  }
+
+  const printManualInstructions = (reason) => {
+    console.error("❌ [STATUS DB: DATA BERBEDA / TIDAK SESUAI EKSPEKTASI] " + reason);
+    console.error("   Sistem TIDAK menimpa database yang sudah ada demi melindungi data di VPS.");
+    if (db && Array.isArray(db.users)) {
+      const safeSummary = db.users.map((u) => ({
+        id: u && u.id,
+        email: u && u.email,
+        role: u && u.role,
+        hasValidBcryptPrefix: Boolean(u && typeof u.password_hash === "string" && u.password_hash.startsWith("$2b$") && u.password_hash.length === 60),
+      }));
+      console.error("   Ringkasan struktural saat ini (tanpa password_hash):", JSON.stringify({
+        userCount: db.users.length,
+        progressCount: Array.isArray(db.course_progress) ? db.course_progress.length : "invalid",
+        quizSubmissionCount: Array.isArray(db.quiz_submissions) ? db.quiz_submissions.length : "invalid",
+        users: safeSummary,
+      }));
+    }
+    console.error("   Instruksi pemeriksaan manual (tanpa menampilkan password_hash / JWT_SECRET):");
+    console.error("   node -e '\''const d=JSON.parse(require(\"fs\").readFileSync(\"/var/www/casper-web/data/academy.json\",\"utf8\")); console.log({users:d.users.map(u=>({id:u.id,email:u.email,role:u.role})),progress:d.course_progress});'\''");
+    process.exit(1);
+  };
+
   if (!Array.isArray(db.users) || !Array.isArray(db.course_progress) || !Array.isArray(db.quiz_submissions)) {
-    console.error("❌ Skema database JSON tidak valid!");
-    process.exit(1);
+    printManualInstructions("Skema dasar JSON (users / course_progress / quiz_submissions) tidak lengkap.");
   }
+
   if (db.users.length === 0) {
-    console.error("❌ Database tidak memiliki pengguna (users: 0)! Update dibatalkan.");
+    console.error("❌ [STATUS DB: KOSONG] Database memiliki struktur JSON tetapi users.length === 0!");
+    console.error("   Sistem menolak menimpa otomatis. Silakan migrasi data akun admin secara manual terlebih dahulu.");
     process.exit(1);
   }
-  const hasTestAccount = db.users.some((u) => u && typeof u.email === "string" && (u.email.endsWith(".test") || u.email === "traderpro@signalcasper.test"));
+
+  const hasTestAccount = db.users.some(
+    (u) => u && typeof u.email === "string" && (u.email.endsWith(".test") || u.email === "traderpro@signalcasper.test")
+  );
   if (hasTestAccount) {
-    console.error("❌ Ditemukan akun pengujian (.test) di database production! Bersihkan terlebih dahulu sebelum update.");
-    process.exit(1);
+    printManualInstructions("Ditemukan akun pengujian (.test) di database production.");
   }
-  const adminUser = db.users.find((u) => u && u.email === "apryn@casper.com" && u.role === "ADMIN" && typeof u.password_hash === "string" && u.password_hash.startsWith("$2b$"));
+
+  const adminUser = db.users.find(
+    (u) =>
+      u &&
+      u.id === "24e81fbb-6ace-4bae-a7cd-8d19a7093b2e" &&
+      u.email === "apryn@casper.com" &&
+      u.role === "ADMIN" &&
+      typeof u.password_hash === "string" &&
+      u.password_hash.startsWith("$2b$") &&
+      u.password_hash.length === 60
+  );
   if (!adminUser) {
-    console.error("❌ Akun ADMIN utama (apryn@casper.com) tidak ditemukan atau tidak valid! Update dibatalkan.");
-    process.exit(1);
+    printManualInstructions("Akun ADMIN utama (apryn@casper.com, id: 24e81fbb-6ace-4bae-a7cd-8d19a7093b2e, role: ADMIN) tidak ditemukan atau tidak sesuai.");
   }
-  const adminProg = db.course_progress.find((p) => p && p.user_id === adminUser.id && p.course_slug === "trading-fundamentals");
+
+  const adminProg = db.course_progress.find(
+    (p) => p && p.user_id === adminUser.id && p.course_slug === "trading-fundamentals"
+  );
   if (!adminProg) {
-    console.error("❌ Progres belajar akun ADMIN (trading-fundamentals) tidak ditemukan! Update dibatalkan.");
-    process.exit(1);
+    printManualInstructions("Progres belajar akun ADMIN pada kelas trading-fundamentals tidak ditemukan.");
   }
+
   const parseField = (val) => (typeof val === "string" ? JSON.parse(val) : val);
-  const completedIds = parseField(adminProg.completed_lesson_ids);
-  const quizScores = parseField(adminProg.quiz_scores);
-  if (!Array.isArray(completedIds) || !quizScores || typeof quizScores !== "object" || Array.isArray(quizScores)) {
-    console.error("❌ Format completed_lesson_ids atau quiz_scores pada progres ADMIN tidak valid!");
-    process.exit(1);
+  let completedIds;
+  let quizScores;
+  try {
+    completedIds = parseField(adminProg.completed_lesson_ids);
+    quizScores = parseField(adminProg.quiz_scores);
+  } catch {
+    printManualInstructions("Field completed_lesson_ids atau quiz_scores pada progres ADMIN bukan JSON valid.");
   }
-  console.log("   Database production valid -> Users:", db.users.length, "| Admin: apryn@casper.com (ADMIN) | CompletedLessons:", completedIds.length, "| Progress:", db.course_progress.length);
+
+  const expectedLessons = ["l1-1", "l1-2", "l1-3"];
+  const hasExpectedLessons =
+    Array.isArray(completedIds) && expectedLessons.every((id) => completedIds.includes(id));
+  const hasExpectedQuiz =
+    quizScores && typeof quizScores === "object" && !Array.isArray(quizScores) && quizScores["l1-3"] === 100;
+
+  if (!hasExpectedLessons || !hasExpectedQuiz) {
+    printManualInstructions("Isi progres belajar ADMIN (l1-1, l1-2, l1-3 & skor kuis l1-3: 100) berbeda dari yang diharapkan.");
+  }
+
+  console.log(
+    "   [STATUS DB: VALID] Database berisi admin & progres yang benar -> Users:",
+    db.users.length,
+    "| Admin: apryn@casper.com (ADMIN) | CompletedLessons:",
+    completedIds.length,
+    "| Progress:",
+    db.course_progress.length
+  );
 ' "$DB_FILE"
 
 # 3. Buat backup database sebelum perubahan kode
@@ -108,7 +191,7 @@ BACKUP_FILE="$BACKUP_DIR/casper-db-preupdate-$TIMESTAMP.tar.gz"
 tar -czf "$BACKUP_FILE" -C "$APP_DIR" data/
 chmod 600 "$BACKUP_FILE"
 
-# 4. Verifikasi isi arsip backup
+# 4. Verifikasi isi arsip backup sebelum perubahan kode dilakukan
 echo "▶ [4/9] Memverifikasi isi arsip backup ($BACKUP_FILE)..."
 if [ ! -s "$BACKUP_FILE" ] || ! tar -tzf "$BACKUP_FILE" | grep -qx "data/academy.json"; then
     echo "❌ Arsip backup gagal diverifikasi (data/academy.json tidak ditemukan di dalam arsip)!"
@@ -120,8 +203,9 @@ tar -xzOf "$BACKUP_FILE" data/academy.json | node -e '
   const fs = require("fs");
   const srcDb = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
   const bakDb = JSON.parse(fs.readFileSync(0, "utf8"));
+  const bakAdmin = Array.isArray(bakDb.users) && bakDb.users.find((u) => u && u.email === "apryn@casper.com" && u.role === "ADMIN");
   if (
-    !Array.isArray(bakDb.users) ||
+    !bakAdmin ||
     bakDb.users.length !== srcDb.users.length ||
     bakDb.course_progress.length !== srcDb.course_progress.length ||
     bakDb.quiz_submissions.length !== srcDb.quiz_submissions.length
@@ -133,18 +217,28 @@ tar -xzOf "$BACKUP_FILE" data/academy.json | node -e '
 ' "$DB_FILE"
 ls -lh "$BACKUP_FILE"
 
-# 5. Catat commit aktif
-echo "▶ [5/9] Mencatat commit aktif sebelum update..."
-PREV_COMMIT=$(git rev-parse --short HEAD)
-echo "   Commit aktif saat ini: $PREV_COMMIT"
+# 5. Catat dan validasi PREV_COMMIT sebelum proses merge
+echo "▶ [5/9] Mencatat & memvalidasi commit aktif (PREV_COMMIT) sebelum merge..."
+PREV_COMMIT=$(git rev-parse --verify --short HEAD 2>/dev/null || true)
+if [ -z "$PREV_COMMIT" ] || ! git cat-file -e "${PREV_COMMIT}^{commit}" 2>/dev/null; then
+    echo "❌ PREV_COMMIT tidak valid ($PREV_COMMIT)! Update dibatalkan sebelum merge."
+    exit 1
+fi
+echo "   Commit aktif tervalidasi: $PREV_COMMIT"
 
 # 6. Pastikan working tree bersih sebelum menarik kode baru
-# Catatan kompatibilitas commit 515ce00: pada 515ce00, data/academy.json dan data-backups/ belum ada di .gitignore,
-# sehingga kita kecualikan untracked '?? data/' dan '?? data-backups/' agar tidak memicu false-positive sebelum merge.
-echo "▶ [6/9] Memeriksa kebersihan working tree Git..."
-DIRTY_STATUS=$(git status --porcelain | grep -Ev '^\?\? (data/|data-backups/)' || true)
+# Kompatibel dengan kondisi commit VPS 515ce00:
+# Pada 515ce00, data/academy.json, data/backups/, dan data-backups/ belum masuk .gitignore.
+# Gunakan -uall agar pemeriksaan melihat setiap file satu per satu dan hanya mengecualikan file data/backup yang aman.
+echo "▶ [6/9] Memeriksa kebersihan working tree Git (kompatibel commit 515ce00)..."
+if ! git ls-files --error-unmatch data/.gitkeep >/dev/null 2>&1 && [ -e "$DATA_DIR/.gitkeep" ]; then
+    echo "❌ Ditemukan file untracked data/.gitkeep sebelum merge yang dapat memicu konflik merge! Hapus terlebih dahulu."
+    exit 1
+fi
+
+DIRTY_STATUS=$(git status --porcelain -uall | grep -Ev '^\?\? (data/academy\.json|data/academy\.db(\.|-journal)?|data/backups/|data-backups/)' || true)
 if [ -n "$DIRTY_STATUS" ]; then
-    echo "❌ PERINGATAN: Working tree di VPS tidak bersih! Proses dihentikan agar tidak ada perubahan lokal yang hilang."
+    echo "❌ PERINGATAN: Working tree di VPS memiliki perubahan kode yang tidak aman! Proses dihentikan."
     echo "Temuan file yang berubah / tidak terlacak:"
     echo "$DIRTY_STATUS"
     echo "Silakan periksa perubahan di atas sebelum menjalankan update."
@@ -160,31 +254,44 @@ if ! git merge --ff-only origin/main; then
     echo "Proses dihentikan tanpa mengubah file kerja maupun proses PM2."
     exit 1
 fi
-NEW_COMMIT=$(git rev-parse --short HEAD)
+NEW_COMMIT=$(git rev-parse --verify --short HEAD)
 echo "   Commit aktif setelah update: $NEW_COMMIT"
 
 # 8. Install dependency dan build production (dengan rollback kode otomatis jika gagal, tanpa menyentuh DB)
 echo "▶ [8/9] Menginstal dependensi & menjalankan build production..."
 rollback_code_only() {
-    echo "⚠️ Build atau instalasi dependensi gagal! Mengembalikan kode Git ke commit sebelumnya ($PREV_COMMIT) tanpa mengubah database..."
-    git reset --hard "$PREV_COMMIT"
-    if [ -s "$DB_FILE" ] && [ -f "$APP_DIR/.env.production" ]; then
-        echo "   Database ($DB_FILE) dan .env.production dipastikan tetap utuh."
+    echo "⚠️ Build atau instalasi dependensi gagal! Mengembalikan HANYA kode Git ke commit sebelumnya ($PREV_COMMIT)..."
+    if git cat-file -e "${PREV_COMMIT}^{commit}" 2>/dev/null; then
+        git reset --hard "$PREV_COMMIT"
+    else
+        echo "❌ PREV_COMMIT ($PREV_COMMIT) tidak valid saat rollback!"
     fi
-    echo "❌ Update dibatalkan. Proses PM2 casper-web lama tidak dihentikan."
+
+    if [ -d "$DATA_DIR" ] && [ -s "$DB_FILE" ] && [ -d "$BACKUP_DIR" ] && [ -s "$BACKUP_FILE" ] && [ -f "$APP_DIR/.env.production" ]; then
+        echo "   ✅ Integritas terjamin: data/, data-backups/, dan .env.production dipastikan tetap utuh."
+    else
+        echo "   ⚠️ Peringatan: Memeriksa kelengkapan data/, data-backups/, atau .env.production pasca-rollback!"
+    fi
+
+    if pm2 describe casper-web >/dev/null 2>&1; then
+        echo "   ✅ Proses PM2 'casper-web' tetap berjalan (tidak dihentikan/direstart karena build gagal)."
+        pm2 status casper-web
+    fi
+    echo "❌ Update dibatalkan."
     exit 1
 }
 
-npm install --prefer-offline --no-audit || rollback_code_only
+npm install --no-package-lock --prefer-offline --no-audit || rollback_code_only
 npm run build || rollback_code_only
+git checkout -- package-lock.json next-env.d.ts 2>/dev/null || true
 
 # Pastikan file penting tetap utuh setelah build
-if [ ! -s "$DB_FILE" ] || [ ! -f "$APP_DIR/.env.production" ]; then
-    echo "❌ Pemeriksaan integritas pasca-build gagal: database atau .env.production hilang!"
+if [ ! -d "$DATA_DIR" ] || [ ! -s "$DB_FILE" ] || [ ! -d "$BACKUP_DIR" ] || [ ! -s "$BACKUP_FILE" ] || [ ! -f "$APP_DIR/.env.production" ]; then
+    echo "❌ Pemeriksaan integritas pasca-build gagal: data/, data-backups/, atau .env.production hilang!"
     exit 1
 fi
 
-# 9. Restart hanya casper-web setelah build berhasil
+# 9. Restart hanya casper-web setelah build berhasil (tanpa menyentuh proses PM2 lain)
 echo "▶ [9/9] Merestart khusus proses PM2 casper-web (single-instance)..."
 pm2 restart casper-web --update-env
 pm2 save

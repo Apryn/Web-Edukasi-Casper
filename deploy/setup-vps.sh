@@ -67,11 +67,16 @@ echo "▶ [3/6] Install dependensi & Build Next.js..."
 npm install
 npm run build
 
-# 4. Setup PM2 (khusus casper-web)
+# 4. Setup PM2 (khusus casper-web, tanpa membuat proses baru secara otomatis jika belum dikonfigurasi)
 echo ""
-echo "▶ [4/6] Menjalankan casper-web dengan PM2 (single-instance)..."
-pm2 restart casper-web --update-env 2>/dev/null || pm2 start ecosystem.config.cjs --only casper-web
-pm2 save
+echo "▶ [4/6] Memeriksa proses PM2 casper-web (single-instance)..."
+if pm2 describe casper-web >/dev/null 2>&1; then
+    pm2 restart casper-web --update-env
+    pm2 save
+else
+    echo "  ⚠️ Proses PM2 'casper-web' belum terdaftar. Menolak membuat proses PM2 baru secara otomatis."
+    echo "  Jalankan secara manual setelah pemeriksaan: pm2 start ecosystem.config.cjs --only casper-web && pm2 save"
+fi
 
 # 5. Buka firewall port jika UFW aktif
 echo ""
@@ -80,43 +85,16 @@ if command -v ufw &> /dev/null; then
     sudo ufw allow 83/tcp || true
 fi
 
-# 6. Konfigurasi Nginx di Port 83 (jangan menimpa konfigurasi yang sudah ada secara otomatis)
+# 6. Pemeriksaan Read-Only Konfigurasi Nginx & HSTS (tidak mengubah Nginx/HSTS secara otomatis)
 echo ""
-echo "▶ [6/6] Memeriksa konfigurasi Nginx di port 83..."
+echo "▶ [6/6] Memeriksa konfigurasi Nginx & HSTS secara read-only (tanpa modifikasi otomatis)..."
 echo "  Memeriksa sumber header Strict-Transport-Security (HSTS) di /etc/nginx/:"
 grep -rn "Strict-Transport-Security" /etc/nginx/ 2>/dev/null || echo "  (Tidak ditemukan directive Strict-Transport-Security eksplisit di /etc/nginx/)"
 
 if [ -f /etc/nginx/sites-available/casper-web ]; then
-    echo "  ℹ️ File /etc/nginx/sites-available/casper-web sudah ada. Tidak menimpa secara otomatis demi keamanan virtual host."
-    echo "  Isi konfigurasi saat ini:"
-    cat /etc/nginx/sites-available/casper-web
+    echo "  ℹ️ File /etc/nginx/sites-available/casper-web sudah ada (tidak diubah secara otomatis)."
 else
-    sudo tee /etc/nginx/sites-available/casper-web > /dev/null << 'EOF'
-server {
-    listen 83;
-    server_name _;
-
-    # Blokir akses langsung ke direktori/file database, backup, git, env, dan skrip internal
-    location ~ ^/(data|data-backups|\.git|\.env|deploy|tests)(/|$) {
-        deny all;
-        return 404;
-    }
-
-    location / {
-        proxy_pass http://127.0.0.1:3005;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-EOF
-    sudo ln -sf /etc/nginx/sites-available/casper-web /etc/nginx/sites-enabled/casper-web
-    sudo nginx -t && sudo systemctl reload nginx
+    echo "  ℹ️ File /etc/nginx/sites-available/casper-web belum ada. Silakan buat secara manual setelah meninjau konfigurasi."
 fi
 
 echo ""

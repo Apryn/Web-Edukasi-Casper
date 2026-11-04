@@ -4,25 +4,23 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { getAllCourses } from "@/lib/courses-data";
-import { CourseCategory, CourseLevel } from "@/lib/types";
+import { getAllCourses, countCourseLessons } from "@/lib/courses-data";
+import { Course, CourseCategory, CourseLevel, UserCourseProgress } from "@/lib/types";
 import {
   getStoredProgress,
-  calculateCoursePercentage,
   fetchServerProgress,
+  evaluateCourseCompletion,
+  setAuthenticatedSessionUser,
+  clearSessionAndProgressStorage,
 } from "@/lib/progress";
 import {
-  ArrowRight,
   ArrowUpRight,
   BookOpen,
-  CheckCircle2,
   Clock3,
   Filter,
   Layers,
   Search,
-  Sparkles,
   Play,
-  RotateCcw,
 } from "lucide-react";
 
 type LearningStatusFilter = "All" | "NotStarted" | "InProgress" | "Completed";
@@ -51,7 +49,7 @@ const statusFilters: Array<{ label: string; value: LearningStatusFilter }> = [
 ];
 
 export default function BelajarPage() {
-  const courses = getAllCourses();
+  const [courses, setCourses] = useState<Course[]>(() => getAllCourses());
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<CourseCategory | "All">("All");
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | "All">("All");
@@ -61,39 +59,72 @@ export default function BelajarPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Initial local load
-    const local = getStoredProgress();
-    const map: Record<string, number> = {};
-    const lastMap: Record<string, string | undefined> = {};
+    let active = true;
 
-    courses.forEach((c) => {
-      const p = local[c.slug];
-      if (p) {
-        map[c.slug] = calculateCoursePercentage(c.totalLessons, p.completedLessonIds.length);
-        lastMap[c.slug] = p.lastAccessedLessonId;
+    const computeProgressState = (
+      courseList: Course[],
+      progressSource: Record<string, UserCourseProgress>
+    ) => {
+      const map: Record<string, number> = {};
+      const lastMap: Record<string, string | undefined> = {};
+
+      courseList.forEach((c) => {
+        const p = progressSource[c.slug];
+        if (p) {
+          const evalResult = evaluateCourseCompletion(c, p);
+          map[c.slug] = evalResult.percentage;
+          lastMap[c.slug] = p.lastAccessedLessonId;
+        }
+      });
+
+      if (active) {
+        setUserProgressMap(map);
+        setLastLessonMap(lastMap);
       }
-    });
-    setUserProgressMap(map);
-    setLastLessonMap(lastMap);
-    setIsLoading(false);
+    };
 
-    // 2. Fetch server database sync
-    fetchServerProgress().then((merged) => {
-      if (merged) {
-        const updatedMap: Record<string, number> = {};
-        const updatedLastMap: Record<string, string | undefined> = {};
-        courses.forEach((c) => {
-          const p = merged[c.slug];
-          if (p) {
-            updatedMap[c.slug] = calculateCoursePercentage(c.totalLessons, p.completedLessonIds.length);
-            updatedLastMap[c.slug] = p.lastAccessedLessonId;
+    async function initCatalog() {
+      let currentCourseList = getAllCourses();
+      try {
+        const resCourses = await fetch("/api/courses");
+        if (resCourses.ok) {
+          const dataCourses = await resCourses.json();
+          if (Array.isArray(dataCourses.courses) && dataCourses.courses.length > 0) {
+            currentCourseList = dataCourses.courses;
+            if (active) setCourses(currentCourseList);
           }
-        });
-        setUserProgressMap(updatedMap);
-        setLastLessonMap(updatedLastMap);
+        }
+      } catch {
+        // Fallback to static courses
       }
-    });
-  }, [courses]);
+
+      try {
+        const meRes = await fetch("/api/auth/me");
+        const meData = await meRes.json();
+        if (meData?.user?.id) {
+          setAuthenticatedSessionUser(meData.user);
+          computeProgressState(currentCourseList, getStoredProgress(meData.user.id));
+          const serverMap = await fetchServerProgress();
+          if (serverMap) {
+            computeProgressState(currentCourseList, serverMap);
+          }
+        } else {
+          clearSessionAndProgressStorage();
+          computeProgressState(currentCourseList, {});
+        }
+      } catch {
+        computeProgressState(currentCourseList, getStoredProgress());
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    }
+
+    initCatalog();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filteredCourses = courses.filter((c) => {
     const matchesSearch =
@@ -106,6 +137,7 @@ export default function BelajarPage() {
 
     const matchesLevel = selectedLevel === "All" || c.level === selectedLevel;
 
+    const actualTotal = countCourseLessons(c);
     const pct = userProgressMap[c.slug] || 0;
     let matchesStatus = true;
     if (selectedStatus === "NotStarted") {
@@ -113,7 +145,7 @@ export default function BelajarPage() {
     } else if (selectedStatus === "InProgress") {
       matchesStatus = pct > 0 && pct < 100;
     } else if (selectedStatus === "Completed") {
-      matchesStatus = pct === 100;
+      matchesStatus = actualTotal > 0 && pct === 100;
     }
 
     return matchesSearch && matchesCategory && matchesLevel && matchesStatus;
@@ -140,8 +172,8 @@ export default function BelajarPage() {
 
           <div className="academy-stats-row">
             <div className="stat-box">
-              <strong>9</strong>
-              <span>Kelas Utama</span>
+              <strong>{courses.length}</strong>
+              <span>Kelas Aktif</span>
             </div>
             <div className="stat-box">
               <strong>50+</strong>
@@ -243,9 +275,10 @@ export default function BelajarPage() {
         ) : (
           <div className="courses-grid">
             {filteredCourses.map((course) => {
+              const actualTotalLessons = countCourseLessons(course);
               const progress = userProgressMap[course.slug] || 0;
-              const isCompleted = progress === 100;
-              const isStarted = progress > 0;
+              const isCompleted = actualTotalLessons > 0 && progress === 100;
+              const isStarted = actualTotalLessons > 0 && progress > 0;
               const lastLessonId = lastLessonMap[course.slug];
 
               const directClassroomHref = lastLessonId
@@ -299,7 +332,7 @@ export default function BelajarPage() {
                       <Clock3 size={13} /> {course.duration}
                     </span>
                     <span className="meta-item">
-                      <Layers size={13} /> {course.totalLessons} Pelajaran
+                      <Layers size={13} /> {actualTotalLessons} Pelajaran
                     </span>
                   </div>
 

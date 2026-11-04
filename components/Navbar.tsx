@@ -4,19 +4,24 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { ArrowUpRight, GraduationCap, LayoutDashboard, LineChart, Menu, X } from "lucide-react";
+import { setAuthenticatedSessionUser, clearSessionAndProgressStorage } from "@/lib/progress";
+import { ArrowUpRight, Menu, X } from "lucide-react";
 
 export default function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [user, setUser] = useState<{ name?: string; role?: string } | null>(null);
+  const [user, setUser] = useState<{ id?: string; name?: string; role?: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
-        if (data.user) {
+        if (data.user && data.user.id) {
+          setAuthenticatedSessionUser(data.user);
           setUser(data.user);
+        } else {
+          clearSessionAndProgressStorage();
+          setUser(null);
         }
       })
       .catch(() => {});

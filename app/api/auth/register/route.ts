@@ -1,69 +1,59 @@
 import { NextResponse } from "next/server";
-import crypto from "node:crypto";
-import { findUserByEmail, createUser } from "@/lib/db";
-import { hashPassword, createToken, COOKIE_NAME, sanitizeUser, shouldUseSecureCookie } from "@/lib/auth";
+import { COOKIE_NAME, shouldUseSecureCookie } from "@/lib/auth";
+import { processRegisterRequest } from "@/lib/server-auth";
+import { getClientIpFromRequest, consumeRegisterRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { email, password, name } = body;
-
-    if (!email || !password || !name) {
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      const clientIp = getClientIpFromRequest(req);
+      const regLimit = consumeRegisterRateLimit(clientIp);
+      if (!regLimit.allowed) {
+        return NextResponse.json(
+          {
+            error:
+              "Terlalu banyak percobaan pendaftaran akun. Silakan coba lagi setelah beberapa saat.",
+            retryAfterSeconds: regLimit.retryAfterSeconds,
+          },
+          {
+            status: 429,
+            headers: { "Retry-After": String(regLimit.retryAfterSeconds) },
+          }
+        );
+      }
       return NextResponse.json(
-        { error: "Nama, email, dan kata sandi wajib diisi." },
+        { error: "Payload request tidak valid." },
         { status: 400 }
       );
     }
 
-    if (typeof email !== "string" || !email.includes("@")) {
+    const result = await processRegisterRequest(req, body);
+
+    if (!result.ok || !result.token || !result.user) {
       return NextResponse.json(
-        { error: "Format email tidak valid." },
-        { status: 400 }
+        {
+          error: result.error || "Gagal mendaftarkan akun.",
+          ...(result.retryAfterSeconds !== undefined
+            ? { retryAfterSeconds: result.retryAfterSeconds }
+            : {}),
+        },
+        {
+          status: result.status,
+          headers: result.headers,
+        }
       );
     }
-
-    if (typeof password !== "string" || password.length < 6) {
-      return NextResponse.json(
-        { error: "Kata sandi minimal 6 karakter." },
-        { status: 400 }
-      );
-    }
-
-    // Check duplicate
-    const existing = findUserByEmail(email);
-    if (existing) {
-      return NextResponse.json(
-        { error: "Email sudah terdaftar. Silakan login." },
-        { status: 409 }
-      );
-    }
-
-    const passwordHash = await hashPassword(password);
-    const id = crypto.randomUUID();
-
-    const user = createUser({
-      id,
-      email,
-      name: String(name).slice(0, 80),
-      passwordHash,
-      role: "USER",
-    });
-
-    const token = createToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    const safeUser = sanitizeUser(user);
 
     const res = NextResponse.json({
       success: true,
-      token,
-      user: safeUser,
+      token: result.token,
+      user: result.user,
     });
 
-    res.cookies.set(COOKIE_NAME, token, {
+    res.cookies.set(COOKIE_NAME, result.token, {
       httpOnly: true,
       secure: shouldUseSecureCookie(),
       sameSite: "lax",

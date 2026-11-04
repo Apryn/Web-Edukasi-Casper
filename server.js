@@ -26,13 +26,27 @@ app.prepare().then(() => {
 
     if (process.env.COOKIE_SECURE === "false") {
       console.warn(
-        "[SECURITY NOTICE] COOKIE_SECURE=false aktif (mode akses HTTP sementara). Segera gunakan HTTPS dan hapus COOKIE_SECURE=false untuk keamanan penuh."
+        "[SECURITY WARNING] COOKIE_SECURE=false aktif (konfigurasi sementara khusus pengujian HTTP). Konfigurasi ini TIDAK AMAN untuk pengguna publik/sungguhan. Segera aktifkan HTTPS dan ubah ke COOKIE_SECURE=true."
       );
     }
   }
 
   createServer(async (req, res) => {
     try {
+      // Harden client IP resolution against header spoofing:
+      // Always strip any external x-casper-direct-ip sent by a client.
+      delete req.headers["x-casper-direct-ip"];
+      const remoteAddr = req.socket && req.socket.remoteAddress ? String(req.socket.remoteAddress) : "";
+      const isLoopbackProxy =
+        remoteAddr === "127.0.0.1" ||
+        remoteAddr === "::1" ||
+        remoteAddr === "::ffff:127.0.0.1";
+      // If connection does NOT originate from local Nginx reverse proxy, bind directly to TCP socket IP
+      // so client-supplied X-Forwarded-For / X-Real-IP headers cannot spoof the IP.
+      if (remoteAddr && !isLoopbackProxy) {
+        req.headers["x-casper-direct-ip"] = remoteAddr;
+      }
+
       const parsedUrl = parse(req.url, true);
       await handle(req, res, parsedUrl);
     } catch (err) {

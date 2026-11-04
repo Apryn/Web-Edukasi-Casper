@@ -35,11 +35,23 @@ export interface DbQuizSubmission {
   created_at: string;
 }
 
+export interface DbAdminAuditLog {
+  id: string;
+  admin_id: string;
+  admin_email: string;
+  action: string;
+  target_course_id: string;
+  target_course_slug: string;
+  summary: string;
+  created_at: string;
+}
+
 export interface DatabaseSchema {
   users: DbUser[];
   course_progress: DbCourseProgress[];
   quiz_submissions: DbQuizSubmission[];
-  custom_courses?: any[];
+  custom_courses?: Record<string, unknown>[];
+  admin_audit_logs?: DbAdminAuditLog[];
 }
 
 export interface DatabaseHealth {
@@ -572,31 +584,336 @@ export function restoreDatabaseFromBackup(backupFileName?: string): boolean {
 
 // ── Admin Course & User Management ───────────────────────────────
 
-export function getCustomCourses(): any[] {
+export const STATIC_ID_TO_SLUG = new Map<string, string>([
+  ["c1", "trading-fundamentals"],
+  ["c2", "candlestick-price-action"],
+  ["c3", "market-structure"],
+  ["c4", "support-and-resistance"],
+  ["c5", "technical-analysis-framework"],
+  ["c6", "xauusd-market-analysis"],
+  ["c7", "risk-management"],
+  ["c8", "trading-psychology"],
+  ["c9", "trading-journal-evaluation"],
+]);
+
+export const STATIC_SLUG_TO_ID = new Map<string, string>(
+  Array.from(STATIC_ID_TO_SLUG.entries()).map(([id, slug]) => [slug, id])
+);
+
+const STATIC_COURSE_SLUGS = new Set(STATIC_ID_TO_SLUG.values());
+
+export function isStaticCourseIdOrSlug(idOrSlug: string): boolean {
+  const norm = String(idOrSlug || "").toLowerCase().trim();
+  return STATIC_ID_TO_SLUG.has(norm) || STATIC_COURSE_SLUGS.has(norm);
+}
+
+export function getCustomCourses(): Record<string, unknown>[] {
   const db = loadDatabase();
   return Array.isArray(db.custom_courses) ? structuredClone(db.custom_courses) : [];
 }
 
-export function upsertCustomCourse(course: any): void {
+export interface UpsertCourseOptions {
+  allowStaticOverride?: boolean;
+  migrateSlugFrom?: string;
+  audit?: {
+    adminId: string;
+    adminEmail: string;
+    action: string;
+    summary: string;
+  };
+}
+
+export function upsertCustomCourse(
+  course: Record<string, unknown>,
+  options?: UpsertCourseOptions
+): void {
   executeMutation((db) => {
     if (!Array.isArray(db.custom_courses)) {
       db.custom_courses = [];
     }
-    const idx = db.custom_courses.findIndex((c: any) => c.id === course.id || c.slug === course.slug);
-    if (idx >= 0) {
-      db.custom_courses[idx] = course;
+    const courseId = String(course?.id || "").trim();
+    const normalizedSlug = String(course?.slug || "")
+      .toLowerCase()
+      .trim();
+    if (!normalizedSlug) {
+      throw new Error("Slug kelas wajib diisi.");
+    }
+
+    // 1. Check if courseId belongs to a canonical static course (c1..c9)
+    if (STATIC_ID_TO_SLUG.has(courseId)) {
+      const requiredStaticSlug = STATIC_ID_TO_SLUG.get(courseId)!;
+      if (normalizedSlug !== requiredStaticSlug) {
+        throw new Error(
+          `Slug kelas kurikulum inti ("${courseId}") bersifat permanen ("${requiredStaticSlug}") dan tidak dapat diubah.`
+        );
+      }
+      if (
+        !options?.allowStaticOverride &&
+        !course?.isStaticBaseline &&
+        !course?.isOverridden
+      ) {
+        throw new Error(
+          `Konflik slug: "${normalizedSlug}" sudah digunakan oleh kelas statis utama.`
+        );
+      }
+    } else if (STATIC_COURSE_SLUGS.has(normalizedSlug)) {
+      // Non-static course ID trying to use a static course slug -> reject!
+      throw new Error(
+        `Konflik slug: "${normalizedSlug}" sudah digunakan oleh kelas statis utama.`
+      );
+    }
+
+    // 2. Check conflict with other custom courses
+    const conflictingCustom = db.custom_courses.find(
+      (c: Record<string, unknown>) =>
+        String(c?.slug || "").toLowerCase().trim() === normalizedSlug &&
+        String(c?.id || "") !== courseId
+    );
+    if (conflictingCustom) {
+      throw new Error(
+        `Konflik slug: "${normalizedSlug}" sudah digunakan oleh kelas kustom lain.`
+      );
+    }
+
+    // 3. Check if existing custom course is changing its slug while students have progress
+    const existingIdx = db.custom_courses.findIndex(
+      (c: Record<string, unknown>) => String(c?.id || "") === courseId
+    );
+    if (existingIdx >= 0) {
+      const previousSlug = String(db.custom_courses[existingIdx]?.slug || "")
+        .toLowerCase()
+        .trim();
+      if (previousSlug && previousSlug !== normalizedSlug) {
+        const hasProgress = db.course_progress.some(
+          (p) => p.course_slug.toLowerCase() === previousSlug
+        );
+        const hasQuiz = db.quiz_submissions.some(
+          (s) => s.course_slug.toLowerCase() === previousSlug
+        );
+        if ((hasProgress || hasQuiz) && options?.migrateSlugFrom !== previousSlug) {
+          throw new Error(
+            `Slug kelas "${previousSlug}" tidak dapat diubah tanpa migrasi karena sudah memiliki data progres siswa.`
+          );
+        }
+        if (options?.migrateSlugFrom === previousSlug) {
+          for (const p of db.course_progress) {
+            if (p.course_slug.toLowerCase() === previousSlug) {
+              p.course_slug = normalizedSlug;
+            }
+          }
+          for (const s of db.quiz_submissions) {
+            if (s.course_slug.toLowerCase() === previousSlug) {
+              s.course_slug = normalizedSlug;
+            }
+          }
+        }
+      }
+    }
+
+    const isStatic = STATIC_ID_TO_SLUG.has(courseId);
+    const normalizedCourse: Record<string, unknown> = {
+      ...course,
+      id: courseId || String(course?.id || ""),
+      slug: normalizedSlug,
+      ...(isStatic ? { isStaticBaseline: true, isOverridden: true } : {}),
+    };
+
+    if (existingIdx >= 0) {
+      db.custom_courses[existingIdx] = normalizedCourse;
     } else {
-      db.custom_courses.push(course);
+      db.custom_courses.push(normalizedCourse);
+    }
+
+    if (options?.audit) {
+      if (!Array.isArray(db.admin_audit_logs)) {
+        db.admin_audit_logs = [];
+      }
+      db.admin_audit_logs.push({
+        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        admin_id: options.audit.adminId,
+        admin_email: options.audit.adminEmail,
+        action: options.audit.action,
+        target_course_id: String(normalizedCourse.id || ""),
+        target_course_slug: normalizedSlug,
+        summary: options.audit.summary,
+        created_at: new Date().toISOString(),
+      });
+      if (db.admin_audit_logs.length > 200) {
+        db.admin_audit_logs = db.admin_audit_logs.slice(-200);
+      }
     }
   });
 }
 
-export function deleteCustomCourse(courseId: string): void {
+export function resetStaticCourseOverride(
+  courseIdOrSlug: string,
+  audit?: { adminId: string; adminEmail: string }
+): boolean {
+  const norm = String(courseIdOrSlug || "").toLowerCase().trim();
+  const targetId = STATIC_ID_TO_SLUG.has(norm)
+    ? norm
+    : STATIC_SLUG_TO_ID.get(norm);
+  const targetSlug = targetId ? STATIC_ID_TO_SLUG.get(targetId) : undefined;
+  if (!targetId || !targetSlug) {
+    throw new Error(`"${courseIdOrSlug}" bukan kelas kurikulum inti (c1-c9).`);
+  }
+
+  return executeMutation((db) => {
+    if (!Array.isArray(db.custom_courses)) return false;
+    const beforeLen = db.custom_courses.length;
+    db.custom_courses = db.custom_courses.filter(
+      (c: Record<string, unknown>) =>
+        String(c?.id || "").toLowerCase() !== targetId &&
+        String(c?.slug || "").toLowerCase() !== targetSlug
+    );
+    const removed = db.custom_courses.length < beforeLen;
+    if (removed && audit) {
+      if (!Array.isArray(db.admin_audit_logs)) {
+        db.admin_audit_logs = [];
+      }
+      db.admin_audit_logs.push({
+        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        admin_id: audit.adminId,
+        admin_email: audit.adminEmail,
+        action: "COURSE_RESET_BASELINE",
+        target_course_id: targetId,
+        target_course_slug: targetSlug,
+        summary: `Reset kelas "${targetSlug}" (${targetId}) ke kurikulum bawaan pabrik.`,
+        created_at: new Date().toISOString(),
+      });
+      if (db.admin_audit_logs.length > 200) {
+        db.admin_audit_logs = db.admin_audit_logs.slice(-200);
+      }
+    }
+    return removed;
+  });
+}
+
+export function getCourseProgressImpact(
+  courseSlug: string,
+  lessonIds?: string[]
+): {
+  enrolledUsersCount: number;
+  quizSubmissionsCount: number;
+  affectedLessonUsersCount: number;
+  affectedLessonIds: string[];
+} {
+  const db = loadDatabase();
+  const normSlug = String(courseSlug || "").toLowerCase().trim();
+  const courseProgressRows = db.course_progress.filter(
+    (p) => p.course_slug.toLowerCase().trim() === normSlug
+  );
+  const quizRows = db.quiz_submissions.filter(
+    (s) => s.course_slug.toLowerCase().trim() === normSlug
+  );
+
+  const targetSet = new Set((lessonIds || []).map((id) => String(id).trim()));
+  const affectedLessonIdsSet = new Set<string>();
+  let affectedLessonUsersCount = 0;
+
+  if (targetSet.size > 0) {
+    for (const row of courseProgressRows) {
+      try {
+        const completed: unknown[] = JSON.parse(row.completed_lesson_ids || "[]");
+        const scores: Record<string, unknown> = JSON.parse(row.quiz_scores || "{}");
+        let userAffected = false;
+        if (Array.isArray(completed)) {
+          for (const lid of completed) {
+            const sLid = String(lid);
+            if (targetSet.has(sLid)) {
+              affectedLessonIdsSet.add(sLid);
+              userAffected = true;
+            }
+          }
+        }
+        if (scores && typeof scores === "object") {
+          for (const lid of Object.keys(scores)) {
+            if (targetSet.has(lid)) {
+              affectedLessonIdsSet.add(lid);
+              userAffected = true;
+            }
+          }
+        }
+        if (userAffected) affectedLessonUsersCount++;
+      } catch {
+        // ignore malformed json
+      }
+    }
+  }
+
+  return {
+    enrolledUsersCount: courseProgressRows.length,
+    quizSubmissionsCount: quizRows.length,
+    affectedLessonUsersCount,
+    affectedLessonIds: Array.from(affectedLessonIdsSet),
+  };
+}
+
+export function deleteCustomCourse(
+  courseId: string,
+  options?: {
+    protectActiveProgress?: boolean;
+    force?: boolean;
+    audit?: { adminId: string; adminEmail: string };
+  }
+): void {
+  const norm = String(courseId || "").toLowerCase().trim();
+  if (STATIC_ID_TO_SLUG.has(norm) || STATIC_COURSE_SLUGS.has(norm)) {
+    throw new Error(
+      "Kelas kurikulum inti (C1-C9) tidak dapat dihapus permanen. Gunakan fitur Archive, Draft, atau Reset ke Default."
+    );
+  }
+
   executeMutation((db) => {
-    if (Array.isArray(db.custom_courses)) {
-      db.custom_courses = db.custom_courses.filter((c: any) => c.id !== courseId && c.slug !== courseId);
+    if (!Array.isArray(db.custom_courses)) return;
+    const target = db.custom_courses.find(
+      (c: Record<string, unknown>) =>
+        String(c?.id || "") === courseId || String(c?.slug || "") === courseId
+    );
+    if (!target) return;
+
+    const targetSlug = String(target.slug || "").toLowerCase().trim();
+    if (options?.protectActiveProgress && !options?.force) {
+      const hasProgress = db.course_progress.some(
+        (p) => p.course_slug.toLowerCase().trim() === targetSlug
+      );
+      if (hasProgress) {
+        throw new Error(
+          `Kelas "${targetSlug}" memiliki data progres siswa aktif. Arsipkan kelas atau konfirmasi penghapusan paksa (force).`
+        );
+      }
+    }
+
+    db.custom_courses = db.custom_courses.filter(
+      (c: Record<string, unknown>) =>
+        String(c?.id || "") !== courseId && String(c?.slug || "") !== courseId
+    );
+
+    if (options?.audit) {
+      if (!Array.isArray(db.admin_audit_logs)) {
+        db.admin_audit_logs = [];
+      }
+      db.admin_audit_logs.push({
+        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        admin_id: options.audit.adminId,
+        admin_email: options.audit.adminEmail,
+        action: "COURSE_DELETE",
+        target_course_id: String(target.id || courseId),
+        target_course_slug: targetSlug,
+        summary: `Menghapus kelas kustom "${String(target.title || targetSlug)}".`,
+        created_at: new Date().toISOString(),
+      });
+      if (db.admin_audit_logs.length > 200) {
+        db.admin_audit_logs = db.admin_audit_logs.slice(-200);
+      }
     }
   });
+}
+
+export function getAdminAuditLogs(limit = 50): DbAdminAuditLog[] {
+  const db = loadDatabase();
+  if (!Array.isArray(db.admin_audit_logs)) return [];
+  return structuredClone(db.admin_audit_logs.slice(-limit).reverse());
 }
 
 export function getAllUsersForAdmin(): Array<{
@@ -640,6 +957,89 @@ export function makeUserAdmin(email: string): boolean {
       return true;
     }
     return false;
+  });
+}
+
+export function updateUserRole(
+  userId: string,
+  newRole: string,
+  auditAdmin?: { adminId: string; adminEmail: string }
+): boolean {
+  return executeMutation((db) => {
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) {
+      throw new Error("Pengguna tidak ditemukan.");
+    }
+    const targetEmail = user.email.toLowerCase().trim();
+    if (
+      (targetEmail === "apryn@casper.com" || targetEmail === "apriyanriyan23@gmail.com") &&
+      newRole !== "ADMIN"
+    ) {
+      throw new Error("Akun Master Admin utama tidak dapat diturunkan statusnya.");
+    }
+    const prevRole = user.role;
+    user.role = newRole;
+    user.updated_at = new Date().toISOString();
+
+    if (auditAdmin) {
+      if (!Array.isArray(db.admin_audit_logs)) {
+        db.admin_audit_logs = [];
+      }
+      db.admin_audit_logs.push({
+        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        admin_id: auditAdmin.adminId,
+        admin_email: auditAdmin.adminEmail,
+        action: "USER_ROLE_CHANGE",
+        target_course_id: user.id,
+        target_course_slug: user.email,
+        summary: `Mengubah peran ${user.name} (${user.email}) dari "${prevRole}" menjadi "${newRole}".`,
+        created_at: new Date().toISOString(),
+      });
+      if (db.admin_audit_logs.length > 200) {
+        db.admin_audit_logs = db.admin_audit_logs.slice(-200);
+      }
+    }
+    return true;
+  });
+}
+
+export function deleteUserById(
+  userId: string,
+  auditAdmin?: { adminId: string; adminEmail: string }
+): boolean {
+  return executeMutation((db) => {
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) {
+      throw new Error("Pengguna tidak ditemukan.");
+    }
+    const targetEmail = user.email.toLowerCase().trim();
+    if (targetEmail === "apryn@casper.com" || targetEmail === "apriyanriyan23@gmail.com") {
+      throw new Error("Akun Master Admin utama dilarang keras dihapus.");
+    }
+
+    db.users = db.users.filter((u) => u.id !== userId);
+    db.course_progress = db.course_progress.filter((p) => p.user_id !== userId);
+    db.quiz_submissions = db.quiz_submissions.filter((s) => s.user_id !== userId);
+
+    if (auditAdmin) {
+      if (!Array.isArray(db.admin_audit_logs)) {
+        db.admin_audit_logs = [];
+      }
+      db.admin_audit_logs.push({
+        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        admin_id: auditAdmin.adminId,
+        admin_email: auditAdmin.adminEmail,
+        action: "USER_DELETE",
+        target_course_id: userId,
+        target_course_slug: targetEmail,
+        summary: `Menghapus akun pengguna ${user.name} (${user.email}) beserta data progresnya.`,
+        created_at: new Date().toISOString(),
+      });
+      if (db.admin_audit_logs.length > 200) {
+        db.admin_audit_logs = db.admin_audit_logs.slice(-200);
+      }
+    }
+    return true;
   });
 }
 

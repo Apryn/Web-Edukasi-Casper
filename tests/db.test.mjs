@@ -3,23 +3,37 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { registerHooks, stripTypeScriptTypes } from "node:module";
+import { fileURLToPath } from "node:url";
 
-// Import modules
-import {
+if (typeof registerHooks === "function" && typeof stripTypeScriptTypes === "function") {
+  registerHooks({
+    load(url, context, nextLoad) {
+      if (url.endsWith(".ts")) {
+        const source = fs.readFileSync(fileURLToPath(url), "utf8");
+        return {
+          format: "module",
+          shortCircuit: true,
+          source: stripTypeScriptTypes(source),
+        };
+      }
+      return nextLoad(url, context);
+    },
+  });
+}
+
+const {
   getDatabase,
   findUserByEmail,
-  findUserById,
   createUser,
   getUserCourseProgress,
   getAllUserProgress,
   upsertUserProgress,
-  recordQuizSubmission,
   getDatabaseHealth,
   createBackup,
-  restoreDatabaseFromBackup,
   isValidDatabaseSchema,
   executeTransactionForTest,
-} from "../lib/db.ts";
+} = await import("../lib/db.ts");
 
 describe("Signal Casper Academy - JSON Database Audit & Verification Tests", () => {
   const dataDir = path.join(process.cwd(), "data");
@@ -42,7 +56,9 @@ describe("Signal Casper Academy - JSON Database Audit & Verification Tests", () 
       const files = fs.readdirSync(dataDir);
       for (const f of files) {
         if (f.startsWith("academy.corrupt.")) {
-          try { fs.unlinkSync(path.join(dataDir, f)); } catch {}
+          try {
+            fs.unlinkSync(path.join(dataDir, f));
+          } catch {}
         }
       }
     } catch {}

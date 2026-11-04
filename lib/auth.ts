@@ -9,6 +9,11 @@ const FORBIDDEN_PRODUCTION_SECRETS = new Set([
 ]);
 const COOKIE_NAME = "sc_auth_token";
 
+export const MASTER_ADMIN_EMAILS = new Set<string>([
+  "apryn@casper.com",
+  "apriyanriyan23@gmail.com",
+]);
+
 export function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET?.trim();
   if (process.env.NODE_ENV === "production") {
@@ -24,8 +29,6 @@ export function getJwtSecret(): string {
 
 export function shouldUseSecureCookie(): boolean {
   if (process.env.NODE_ENV === "production") {
-    // Default production tetap wajib Secure (true).
-    // Hanya bernilai false jika COOKIE_SECURE="false" diset secara eksplisit.
     return process.env.COOKIE_SECURE !== "false";
   }
   return process.env.COOKIE_SECURE === "true";
@@ -57,8 +60,24 @@ export function sanitizeUser(user: DbUser): SafeUser {
   };
 }
 
+export function isMasterAdmin(user: DbUser | SafeUser | null | undefined): boolean {
+  if (!user?.email) return false;
+  return MASTER_ADMIN_EMAILS.has(user.email.toLowerCase().trim()) || user.role === "MASTER_ADMIN";
+}
+
 export function isAdmin(user: DbUser | SafeUser | null | undefined): boolean {
-  return user?.role === "ADMIN";
+  if (!user) return false;
+  return user.role === "ADMIN" || user.role === "MASTER_ADMIN" || isMasterAdmin(user);
+}
+
+export function isMentorOrAdmin(user: DbUser | SafeUser | null | undefined): boolean {
+  if (!user) return false;
+  return (
+    user.role === "ADMIN" ||
+    user.role === "MENTOR" ||
+    user.role === "MASTER_ADMIN" ||
+    isMasterAdmin(user)
+  );
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -113,4 +132,4 @@ export async function getSessionUser(req?: Request): Promise<DbUser | null> {
   }
 }
 
-export { COOKIE_NAME };
+export { COOKIE_NAME, type DbUser };

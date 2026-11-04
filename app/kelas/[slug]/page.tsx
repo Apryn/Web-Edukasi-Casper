@@ -1,6 +1,12 @@
 import { notFound } from "next/navigation";
-import { getCourseBySlug, getAllCourses } from "@/lib/courses-data";
+import {
+  getCourseBySlug,
+  getAllCourses,
+  sanitizeCourseForClient,
+} from "@/lib/courses-data";
 import ClassroomClient from "./ClassroomClient";
+
+export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
   const courses = getAllCourses();
@@ -22,21 +28,7 @@ export default async function ClassroomPage({
   }
 
   // Sanitize quiz questions to ensure answer keys are NEVER leaked to client DOM/props
-  const sanitizedCourse = {
-    ...course,
-    modules: course.modules.map((mod) => ({
-      ...mod,
-      lessons: mod.lessons.map((lesson) => ({
-        ...lesson,
-        quiz: lesson.quiz?.map((q) => ({
-          id: q.id,
-          question: q.question,
-          options: q.options,
-          // correctAnswer and explanation are excluded for client security!
-        })),
-      })),
-    })),
-  };
+  const sanitizedCourse = sanitizeCourseForClient(course);
 
-  return <ClassroomClient course={sanitizedCourse as any} />;
+  return <ClassroomClient course={sanitizedCourse} />;
 }

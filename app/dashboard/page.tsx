@@ -4,9 +4,16 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { getAllCourses } from "@/lib/courses-data";
-import { getStoredProgress, calculateCoursePercentage } from "@/lib/progress";
-import { UserCourseProgress } from "@/lib/types";
+import { getStaticCourses, countCourseLessons } from "@/lib/courses-data";
+import {
+  getStoredProgress,
+  calculateCoursePercentage,
+  evaluateCourseCompletion,
+  fetchServerProgress,
+  setAuthenticatedSessionUser,
+  clearSessionAndProgressStorage,
+} from "@/lib/progress";
+import { UserCourseProgress, Course } from "@/lib/types";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -14,55 +21,60 @@ import {
   BookOpen,
   CheckCircle2,
   Clock,
-  Compass,
   GraduationCap,
-  Layers,
   LogOut,
   Sparkles,
   Trophy,
-  User,
-  ShieldAlert,
   Printer,
   X,
 } from "lucide-react";
-import { Course } from "@/lib/types";
 
 export default function DashboardPage() {
-  const allCourses = getAllCourses();
+  const [allCourses, setAllCourses] = useState<Course[]>(() => getStaticCourses());
   const [progressMap, setProgressMap] = useState<Record<string, UserCourseProgress>>({});
   const [currentUser, setCurrentUser] = useState<{ id?: string; name?: string; email?: string; role?: string } | null>(null);
   const [selectedCertCourse, setSelectedCertCourse] = useState<Course | null>(null);
 
   useEffect(() => {
-    // 1. Load initial local progress
+    // 1. Load initial local progress for active session user (if any)
     setProgressMap(getStoredProgress());
 
-    // 2. Fetch authenticated user profile
-    fetch("/api/auth/me")
-      .then((res) => res.json())
+    // 2. Fetch all courses (static + custom courses)
+    fetch("/api/courses")
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data.user) {
-          setCurrentUser(data.user);
-        } else if (typeof window !== "undefined") {
-          const raw = localStorage.getItem("sc_user_session");
-          if (raw) setCurrentUser(JSON.parse(raw));
+        if (data?.courses && Array.isArray(data.courses)) {
+          setAllCourses(data.courses);
         }
       })
       .catch(() => {});
 
-    // 3. Sync with server SQLite database
-    import("@/lib/progress").then(({ fetchServerProgress }) => {
-      fetchServerProgress().then((merged) => {
-        if (merged) setProgressMap(merged);
-      });
-    });
+    // 3. Verify authenticated user profile from server cookie (no local fallback)
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.user?.id) {
+          setAuthenticatedSessionUser(data.user);
+          setCurrentUser(data.user);
+          setProgressMap(getStoredProgress(data.user.id));
+
+          fetchServerProgress().then((merged) => {
+            if (merged) setProgressMap(merged);
+          });
+        } else {
+          clearSessionAndProgressStorage();
+          setCurrentUser(null);
+          setProgressMap({});
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("sc_user_session");
-    }
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    clearSessionAndProgressStorage();
+    setCurrentUser(null);
+    setProgressMap({});
     window.location.href = "/login";
   };
 
@@ -75,8 +87,9 @@ export default function DashboardPage() {
   enrolledCourses.forEach((c) => {
     const p = progressMap[c.slug];
     if (p) {
-      totalCompletedLessons += p.completedLessonIds.length;
-      totalLessonsEnrolled += c.totalLessons;
+      const evalState = evaluateCourseCompletion(c, p);
+      totalCompletedLessons += evalState.completedCount;
+      totalLessonsEnrolled += evalState.totalLessons;
     }
   });
 
@@ -88,7 +101,7 @@ export default function DashboardPage() {
   // Find active course to resume (most recently updated or first)
   const activeCourse =
     enrolledCourses.length > 0
-      ? enrolledCourses.sort((a, b) => {
+      ? [...enrolledCourses].sort((a, b) => {
           const timeA = new Date(progressMap[a.slug]?.updatedAt || 0).getTime();
           const timeB = new Date(progressMap[b.slug]?.updatedAt || 0).getTime();
           return timeB - timeA;
@@ -96,6 +109,9 @@ export default function DashboardPage() {
       : allCourses[0];
 
   const activeProgress = activeCourse ? progressMap[activeCourse.slug] : null;
+  const activeCourseEval = activeCourse
+    ? evaluateCourseCompletion(activeCourse, activeProgress)
+    : null;
   const activeResumeLessonId = activeProgress?.lastAccessedLessonId;
   const resumeHref = activeCourse
     ? activeResumeLessonId
@@ -153,26 +169,32 @@ export default function DashboardPage() {
                 <span>
                   Progres:{" "}
                   <b>
-                    {calculateCoursePercentage(
-                      activeCourse.totalLessons,
-                      activeProgress?.completedLessonIds.length || 0
-                    )}
+                    {activeCourseEval?.percentage ??
+                      calculateCoursePercentage(
+                        countCourseLessons(activeCourse),
+                        activeProgress?.completedLessonIds.length || 0
+                      )}
                     %
                   </b>
                 </span>
                 <span>
-                  {activeProgress?.completedLessonIds.length || 0} dari{" "}
-                  {activeCourse.totalLessons} Pelajaran Selesai
+                  {activeCourseEval?.completedCount ??
+                    (activeProgress?.completedLessonIds.length || 0)}{" "}
+                  dari {activeCourseEval?.totalLessons ?? countCourseLessons(activeCourse)}{" "}
+                  Pelajaran Selesai
                 </span>
               </div>
               <div className="progress-track">
                 <div
                   className="progress-fill"
                   style={{
-                    width: `${calculateCoursePercentage(
-                      activeCourse.totalLessons,
-                      activeProgress?.completedLessonIds.length || 0
-                    )}%`,
+                    width: `${
+                      activeCourseEval?.percentage ??
+                      calculateCoursePercentage(
+                        countCourseLessons(activeCourse),
+                        activeProgress?.completedLessonIds.length || 0
+                      )
+                    }%`,
                   }}
                 />
               </div>
@@ -249,15 +271,13 @@ export default function DashboardPage() {
           <div className="courses-grid">
             {enrolledCourses.map((course) => {
               const p = progressMap[course.slug];
-              const pct = calculateCoursePercentage(
-                course.totalLessons,
-                p?.completedLessonIds.length || 0
-              );
-              const isComplete = pct === 100;
+              const evalState = evaluateCourseCompletion(course, p);
+              const pct = evalState.percentage;
+              const isComplete = evalState.isComplete;
               const courseQuizLessons = course.modules.flatMap((m) => m.lessons).filter((l) => l.type === "quiz");
               const hasQuiz = courseQuizLessons.length > 0;
-              const allQuizzesPassed = !hasQuiz || courseQuizLessons.every((ql) => (p?.quizScores?.[ql.id] || 0) >= 70);
-              const isEligibleForCertificate = isComplete && allQuizzesPassed;
+              const allQuizzesPassed = evalState.allQuizzesPassed;
+              const isEligibleForCertificate = evalState.isEligibleForCertificate;
 
               return (
                 <div key={course.id} className="course-card">
@@ -297,7 +317,7 @@ export default function DashboardPage() {
                     if (hasQuiz) {
                       return (
                         <div className="course-quiz-badge pending">
-                          <Trophy size={11} /> Kuis Belum Dikerjakan (Syarat Lulus: $\ge$ 70%)
+                          <Trophy size={11} /> Kuis Belum Dikerjakan (Syarat Lulus: ≥ 70%)
                         </div>
                       );
                     }
@@ -306,7 +326,7 @@ export default function DashboardPage() {
 
                   {isComplete && !allQuizzesPassed && (
                     <div className="course-quiz-badge pending" style={{ background: "#281710", borderColor: "#78350f", color: "#fdba74" }}>
-                      <Award size={11} /> Sertifikat tertunda: Kuis wajib lulus $\ge$ 70%
+                      <Award size={11} /> Sertifikat tertunda: Kuis wajib lulus ≥ 70%
                     </div>
                   )}
 
