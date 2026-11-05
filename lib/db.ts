@@ -86,6 +86,7 @@ ensureDirectories();
 // ── In-Memory Cache & State ──────────────────────────────────────
 let cache: DatabaseSchema | null = null;
 let lastKnownMtimeMs = 0;
+let lastKnownSizeBytes = 0;
 let writeCounter = 0;
 const MAX_BACKUP_FILES = 7;
 const BACKUP_INTERVAL_WRITES = 20;
@@ -216,12 +217,12 @@ function findLatestValidBackup(): DatabaseSchema | null {
 function loadDatabase(): DatabaseSchema {
   ensureDirectories();
 
-  // Check if cache can be reused by checking file mtime
+  // Check if cache can be reused by checking file mtime and size
   if (cache) {
     try {
       if (fs.existsSync(dbFilePath)) {
-        const currentMtime = fs.statSync(dbFilePath).mtimeMs;
-        if (currentMtime === lastKnownMtimeMs) {
+        const stat = fs.statSync(dbFilePath);
+        if (stat.mtimeMs === lastKnownMtimeMs && stat.size === lastKnownSizeBytes) {
           return cache;
         }
       }
@@ -237,7 +238,9 @@ function loadDatabase(): DatabaseSchema {
       if (isValidDatabaseSchema(parsed)) {
         parsed.custom_courses = Array.isArray(parsed.custom_courses) ? parsed.custom_courses : [];
         cache = parsed;
-        lastKnownMtimeMs = fs.statSync(dbFilePath).mtimeMs;
+        const stat = fs.statSync(dbFilePath);
+        lastKnownMtimeMs = stat.mtimeMs;
+        lastKnownSizeBytes = stat.size;
         return cache;
       }
       throw new Error("Invalid database schema detected.");
@@ -326,7 +329,9 @@ function persistDirect(data: DatabaseSchema): void {
 
     // Atomic replace
     fs.renameSync(tmpPath, dbFilePath);
-    lastKnownMtimeMs = fs.statSync(dbFilePath).mtimeMs;
+    const postStat = fs.statSync(dbFilePath);
+    lastKnownMtimeMs = postStat.mtimeMs;
+    lastKnownSizeBytes = postStat.size;
   } catch (err) {
     if (fd !== null) {
       try {

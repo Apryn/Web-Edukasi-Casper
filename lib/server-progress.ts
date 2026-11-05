@@ -4,6 +4,7 @@ import {
   getUserCourseProgress,
   upsertUserProgress,
   recordQuizSubmission,
+  findUserById,
 } from "./db";
 import type { Lesson } from "./types";
 
@@ -91,6 +92,18 @@ export function validateAndPersistUserProgress(
       status: 404,
       error: `Kelas "${courseSlug}" tidak ditemukan.`,
     };
+  }
+
+  // 2b. Draft & Archived Protection: Non-admin users cannot record progress on unpublished/archived courses
+  if (course.status !== "published") {
+    const caller = findUserById(userId);
+    if (!caller || caller.role !== "ADMIN") {
+      return {
+        ok: false,
+        status: 403,
+        error: `Kelas "${courseSlug}" berstatus ${course.status} dan tidak menerima pencatatan progres siswa.`,
+      };
+    }
   }
 
   const lessonMap = new Map<string, Lesson>();
@@ -298,6 +311,18 @@ export function evaluateAndRecordServerQuiz(
   });
   if (!course) {
     return { ok: false, status: 404, error: "Kelas tidak ditemukan" };
+  }
+
+  // 1b. Draft & Archived Protection: Non-admin users cannot submit quiz answers for unpublished/archived courses
+  if (course.status !== "published") {
+    const caller = findUserById(userId);
+    if (!caller || caller.role !== "ADMIN") {
+      return {
+        ok: false,
+        status: 403,
+        error: `Kelas "${courseSlug}" berstatus ${course.status} dan tidak menerima pengumpulan kuis siswa.`,
+      };
+    }
   }
 
   const validLessonIds = new Set<string>();

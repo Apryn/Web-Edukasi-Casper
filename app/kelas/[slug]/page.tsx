@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getSessionUser, isAdmin } from "@/lib/auth";
 import {
   getCourseBySlug,
   getAllCourses,
@@ -21,7 +22,14 @@ export default async function ClassroomPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const course = getCourseBySlug(slug);
+  let course = getCourseBySlug(slug);
+
+  if (!course) {
+    const sessionUser = await getSessionUser();
+    if (sessionUser && isAdmin(sessionUser)) {
+      course = getCourseBySlug(slug, { includeDrafts: true, includeArchived: true });
+    }
+  }
 
   if (!course) {
     notFound();
