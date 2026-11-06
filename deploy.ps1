@@ -1,59 +1,127 @@
-# =============================================================
-#   SIGNAL CASPER - PUSH & DEPLOY KE VPS HOSTINGER
-#   Jalankan dari PC Windows: .\deploy.ps1
-# =============================================================
+<#
+.SYNOPSIS
+  Skrip One-Click Deploy Signal Casper Web ke VPS Hostinger.
+.DESCRIPTION
+  Menjalankan seluruh tahapan deployment secara otomatis:
+  1. Validasi database lokal (admin tunggal).
+  2. Upload seed database ke VPS secara aman (/tmp/academy.admin-seed.json).
+  3. Inisialisasi folder data, perizinan (700/600), dan .env.production di VPS jika belum ada.
+  4. Menjalankan git safe update & build Next.js di VPS.
+  5. Reload PM2 (hanya casper-web) & health check.
+.USAGE
+  powershell -ExecutionPolicy Bypass -File .\deploy.ps1
+  atau cukup jalankan: .\deploy.bat
+#>
 
 param(
-    [string]$VPS_IP = "187.77.156.219",
-    [string]$VPS_USER = "root",
-    [string]$SSH_KEY = ""
+    [string]$VpsHost = "187.77.156.219",
+    [string]$VpsUser = "root",
+    [string]$AppDir = "/var/www/casper-web"
 )
 
-$START_TIME = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$ErrorActionPreference = "Stop"
 
-Write-Host ""
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "     SIGNAL CASPER - PUSH & DEPLOY KE VPS" -ForegroundColor Cyan
+Write-Host "   SIGNAL CASPER WEB -- ONE-CLICK DEPLOYER" -ForegroundColor Cyan
+Write-Host "   Target VPS: $VpsUser@$VpsHost ($AppDir)" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "  Waktu  : $START_TIME" -ForegroundColor Gray
-Write-Host "  Target : $VPS_USER@$VPS_IP" -ForegroundColor Gray
-Write-Host ""
 
-# 1. Cek git & push jika ada commit
-Write-Host "-> [1/3] Memeriksa perubahan git lokal..." -ForegroundColor Yellow
-$gitStatus = git status --porcelain 2>$null
-if ($gitStatus) {
-    Write-Host "   Ada perubahan lokal terdeteksi. Melakukan commit & push..." -ForegroundColor Gray
-    git add .
-    git commit -m "deploy: update web casper signal ($START_TIME)"
-    git push origin main
-    Write-Host "   Pushed ke GitHub!" -ForegroundColor Green
-}
-else {
-    Write-Host "   Tidak ada perubahan file baru. Melanjutkan..." -ForegroundColor Gray
+# 1. Validasi file database lokal
+$LocalDbPath = Join-Path $PSScriptRoot "data\academy.json"
+if (-not (Test-Path $LocalDbPath)) {
+    Write-Host "[ERROR] File database lokal ($LocalDbPath) tidak ditemukan!" -ForegroundColor Red
+    exit 1
 }
 
-# 2. SSH command builder
-$SSH_ARGS = @("-o", "StrictHostKeyChecking=no")
-if ($SSH_KEY -ne "") {
-    $SSH_ARGS += "-i", $SSH_KEY
+Write-Host "`n[1/4] Memvalidasi integritas database admin lokal..." -ForegroundColor Yellow
+$ValidationScript = @'
+const fs = require('fs');
+const db = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+if (!Array.isArray(db.users) || db.users.length !== 1) {
+  console.error('Jumlah pengguna harus tepat 1');
+  process.exit(1);
 }
-$SSH_TARGET = "$VPS_USER@$VPS_IP"
+if (db.users[0].email !== 'apryn@casper.com' || db.users[0].role !== 'ADMIN') {
+  console.error('User bukan admin apryn@casper.com');
+  process.exit(1);
+}
+console.log('Database lokal valid. User: ' + db.users[0].email + ' | Role: ' + db.users[0].role);
+'@
 
-# 3. Jalankan script update di VPS
-Write-Host ""
-Write-Host "-> [2/3] Menjalankan update script di VPS..." -ForegroundColor Yellow
+$NodeResult = node -e $ValidationScript $LocalDbPath
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] Validasi database gagal: $NodeResult" -ForegroundColor Red
+    exit 1
+}
+Write-Host "   OK: $NodeResult" -ForegroundColor Green
 
-$remoteCommand = "if [ ! -d /var/www/casper-web ]; then git clone https://github.com/Apryn/Web-Edukasi-Casper.git /var/www/casper-web && bash /var/www/casper-web/deploy/setup-vps.sh; else bash /var/www/casper-web/deploy/update.sh; fi"
+# 2. Upload file database admin ke /tmp VPS
+Write-Host "`n[2/4] Mengunggah database seed ke VPS ($VpsHost)..." -ForegroundColor Yellow
+Write-Host "   (Masukkan password VPS jika diminta oleh OpenSSH)" -ForegroundColor Gray
+scp -o StrictHostKeyChecking=accept-new $LocalDbPath "${VpsUser}@${VpsHost}:/tmp/academy.admin-seed.json"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] Gagal mengunggah database ke VPS!" -ForegroundColor Red
+    exit 1
+}
+Write-Host "   OK: Database seed berhasil terunggah ke /tmp/academy.admin-seed.json" -ForegroundColor Green
 
-ssh @SSH_ARGS $SSH_TARGET $remoteCommand
+# 3. Jalankan prosedur deployment aman di VPS via SSH
+Write-Host "`n[3/4] Menjalankan automasi deployment di VPS..." -ForegroundColor Yellow
+$RemoteCommand = @'
+set -euo pipefail
+APP_DIR="/var/www/casper-web"
+DATA_DIR="$APP_DIR/data"
+DB_FILE="$DATA_DIR/academy.json"
+BACKUP_DIR="$APP_DIR/data-backups"
+
+echo "==> [VPS 1/5] Memastikan direktori dan izin data (700)..."
+mkdir -p "$DATA_DIR" "$BACKUP_DIR"
+chmod 700 "$DATA_DIR" "$BACKUP_DIR"
+
+if [ ! -f "$DB_FILE" ] || [ ! -s "$DB_FILE" ]; then
+    if [ -f "/tmp/academy.admin-seed.json" ]; then
+        echo "==> [VPS 2/5] Memasang database awal ke $DB_FILE (chmod 600)..."
+        cp /tmp/academy.admin-seed.json "$DB_FILE"
+        chmod 600 "$DB_FILE"
+        rm -f /tmp/academy.admin-seed.json
+    else
+        echo "ERROR: Database $DB_FILE belum ada dan /tmp/academy.admin-seed.json tidak ditemukan!"
+        exit 1
+    fi
+else
+    echo "==> [VPS 2/5] Database $DB_FILE sudah ada. Mempertahankan database aktif."
+    rm -f /tmp/academy.admin-seed.json
+fi
+
+if [ ! -f "$APP_DIR/.env.production" ]; then
+    echo "==> [VPS 3/5] Membuat .env.production..."
+    cat << "EOF" > "$APP_DIR/.env.production"
+NODE_ENV=production
+PORT=3005
+JWT_SECRET=$(openssl rand -hex 32)
+COOKIE_SECURE=false
+EOF
+    chmod 600 "$APP_DIR/.env.production"
+fi
+
+echo "==> [VPS 4/5] Memperbarui kode dari origin/main..."
+cd "$APP_DIR"
+git fetch origin main
+git merge --ff-only origin/main
+
+echo "==> [VPS 5/5] Menjalankan update dan restart PM2 aman..."
+bash "$APP_DIR/deploy/update.sh"
+'@
+
+ssh -t -o StrictHostKeyChecking=accept-new "${VpsUser}@${VpsHost}" "$RemoteCommand"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] Terjadi kegagalan saat menjalankan deployment di VPS!" -ForegroundColor Red
+    exit 1
+}
 
 # 4. Selesai
-Write-Host ""
-Write-Host "==================================================" -ForegroundColor Green
-Write-Host "     DEPLOY SELESAI!" -ForegroundColor Green
-Write-Host "==================================================" -ForegroundColor Green
-Write-Host ""
-Write-Host "  Akses Web Casper di:" -ForegroundColor White
-Write-Host "  -> http://$VPS_IP`:83" -ForegroundColor Cyan
-Write-Host ""
+Write-Host "`n[4/4] Deployment selesai!" -ForegroundColor Green
+Write-Host "==================================================" -ForegroundColor Cyan
+Write-Host "   DEPLOYMENT BERHASIL SELESAI!" -ForegroundColor Green
+Write-Host "   Buka di browser: http://${VpsHost}:83/login" -ForegroundColor Cyan
+Write-Host "==================================================" -ForegroundColor Cyan
