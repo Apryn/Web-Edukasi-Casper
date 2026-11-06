@@ -282,7 +282,11 @@ rollback_code_only() {
     exit 1
 }
 
-npm install --no-package-lock --prefer-offline --no-audit || rollback_code_only
+if ! npm install --no-audit; then
+    echo "⚠️ npm install gagal, membersihkan cache npm dan mencoba ulang..."
+    npm cache clean --force || true
+    npm install --no-audit || rollback_code_only
+fi
 npm run build || rollback_code_only
 git checkout -- package-lock.json next-env.d.ts 2>/dev/null || true
 
