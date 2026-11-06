@@ -20,30 +20,55 @@ echo "▶ [1/5] Memastikan direktori dan izin data (700)..."
 mkdir -p "$DATA_DIR" "$BACKUP_DIR"
 chmod 700 "$DATA_DIR" "$BACKUP_DIR"
 
-# Validasi & pasang database
-if [ -f "/tmp/academy.admin-seed.json" ]; then
-    REPLACE_NEEDED=0
-    if [ ! -f "$DB_FILE" ] || [ ! -s "$DB_FILE" ]; then
-        echo "   Database di VPS belum ada atau kosong."
-        REPLACE_NEEDED=1
-    elif grep -q '"traderpro@signalcasper.test"' "$DB_FILE" 2>/dev/null || grep -q '\.test"' "$DB_FILE" 2>/dev/null; then
-        echo "   ⚠️ Terdeteksi akun pengujian (.test) di database lama VPS."
-        echo "   Mengarsipkan database lama ke $BACKUP_DIR..."
-        cp "$DB_FILE" "$BACKUP_DIR/academy.old-test-archive.$(date +%s).json"
-        REPLACE_NEEDED=1
-    fi
+# Periksa kelayakan database aktif di VPS
+DB_STATUS="NEEDS_SEED"
+if [ -f "$DB_FILE" ] && [ -s "$DB_FILE" ]; then
+    DB_STATUS=$(node -e '
+      const fs = require("fs");
+      try {
+        const db = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+        if (!Array.isArray(db.users) || !Array.isArray(db.course_progress) || !Array.isArray(db.quiz_submissions)) {
+          console.log("INVALID_SCHEMA"); process.exit(0);
+        }
+        const hasTest = db.users.some(u => u && typeof u.email === "string" && (u.email.endsWith(".test") || u.email.includes("test") || u.email === "traderpro@signalcasper.test"));
+        if (hasTest) {
+          console.log("HAS_TEST_ACCOUNT"); process.exit(0);
+        }
+        const admin = db.users.find(u => u && u.id === "24e81fbb-6ace-4bae-a7cd-8d19a7093b2e" && u.email === "apryn@casper.com" && u.role === "ADMIN");
+        if (!admin) {
+          console.log("NO_VALID_ADMIN"); process.exit(0);
+        }
+        const prog = db.course_progress.find(p => p && p.user_id === admin.id && p.course_slug === "trading-fundamentals");
+        if (!prog) {
+          console.log("NO_ADMIN_PROGRESS"); process.exit(0);
+        }
+        console.log("VALID");
+      } catch (err) {
+        console.log("CORRUPT");
+      }
+    ' "$DB_FILE" 2>/dev/null || echo "CHECK_FAILED")
+fi
 
-    if [ "$REPLACE_NEEDED" -eq 1 ]; then
+echo "   Status database di VPS saat ini: $DB_STATUS"
+
+if [ "$DB_STATUS" != "VALID" ]; then
+    if [ -f "/tmp/academy.admin-seed.json" ]; then
+        if [ -f "$DB_FILE" ] && [ -s "$DB_FILE" ]; then
+            echo "▶ [2/5] Database lama di VPS tidak memenuhi standar produksi ($DB_STATUS)."
+            echo "        Mengarsipkan file lama ke $BACKUP_DIR..."
+            cp "$DB_FILE" "$BACKUP_DIR/academy.pre-seed-archive.$(date +%s).json"
+        fi
         echo "▶ [2/5] Memasang database admin bersih dari local seed (chmod 600)..."
         cp /tmp/academy.admin-seed.json "$DB_FILE"
         chmod 600 "$DB_FILE"
     else
-        echo "▶ [2/5] Database produksi aktif valid, mempertahankan data."
+        echo "❌ Database VPS tidak valid ($DB_STATUS) dan /tmp/academy.admin-seed.json tidak tersedia!"
+        exit 1
     fi
-    rm -f /tmp/academy.admin-seed.json
 else
-    echo "▶ [2/5] Mempertahankan database aktif ($DB_FILE)."
+    echo "▶ [2/5] Database produksi di VPS valid & siap. Mempertahankan data pengguna."
 fi
+rm -f /tmp/academy.admin-seed.json
 
 if [ ! -f "$APP_DIR/.env.production" ]; then
     echo "▶ [3/5] Membuat .env.production awal..."
