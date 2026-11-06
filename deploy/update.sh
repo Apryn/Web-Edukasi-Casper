@@ -188,18 +188,19 @@ mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="$BACKUP_DIR/casper-db-preupdate-$TIMESTAMP.tar.gz"
-tar -czf "$BACKUP_FILE" -C "$APP_DIR" data/
+tar -czf "$BACKUP_FILE" -C "$APP_DIR" data
 chmod 600 "$BACKUP_FILE"
 
 # 4. Verifikasi isi arsip backup sebelum perubahan kode dilakukan
 echo "▶ [4/9] Memverifikasi isi arsip backup ($BACKUP_FILE)..."
-if [ ! -s "$BACKUP_FILE" ] || ! tar -tzf "$BACKUP_FILE" | grep -qx "data/academy.json"; then
+TAR_ENTRY=$(tar -tzf "$BACKUP_FILE" 2>/dev/null | grep -E '(^|\./)data/academy\.json$' | head -n 1 || true)
+if [ ! -s "$BACKUP_FILE" ] || [ -z "$TAR_ENTRY" ]; then
     echo "❌ Arsip backup gagal diverifikasi (data/academy.json tidak ditemukan di dalam arsip)!"
     rm -f "$BACKUP_FILE"
     exit 1
 fi
 
-tar -xzOf "$BACKUP_FILE" data/academy.json | node -e '
+tar -xzOf "$BACKUP_FILE" "$TAR_ENTRY" | node -e '
   const fs = require("fs");
   const srcDb = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
   const bakDb = JSON.parse(fs.readFileSync(0, "utf8"));
