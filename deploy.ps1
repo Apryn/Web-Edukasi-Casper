@@ -2,11 +2,12 @@
 .SYNOPSIS
   Skrip One-Click Deploy Signal Casper Web ke VPS Hostinger.
 .DESCRIPTION
-  Menjalankan seluruh tahapan deployment secara otomatis:
+  Menjalankan seluruh tahapan deployment dalam 1 sesi SSH:
   1. Validasi database lokal (admin tunggal).
-  2. Upload seed database & runner ke VPS via scp.
-  3. Menjalankan runner script di VPS via ssh.
-  4. Selesai & verifikasi.
+  2. Mengirim file & memasang SSH Key secara otomatis (agar tidak minta password berulang).
+  3. Mengarsipkan database pengujian lama di VPS dan memasang database admin bersih.
+  4. Menjalankan git merge origin/main & build Next.js di VPS.
+  5. Restart PM2 casper-web aman.
 .USAGE
   powershell -ExecutionPolicy Bypass -File .\deploy.ps1
   atau cukup jalankan: .\deploy.bat
@@ -38,7 +39,7 @@ if (-not (Test-Path $RunnerScriptPath)) {
     exit 1
 }
 
-Write-Host "`n[1/3] Memvalidasi integritas database admin lokal..." -ForegroundColor Yellow
+Write-Host "`n[1/2] Memvalidasi integritas database admin lokal..." -ForegroundColor Yellow
 $ValidationScript = @'
 const fs = require('fs');
 const db = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
@@ -60,26 +61,42 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "   OK: $NodeResult" -ForegroundColor Green
 
-# 2. Upload file database dan runner ke /tmp VPS
-Write-Host "`n[2/3] Mengunggah file database & deploy runner ke VPS ($VpsHost)..." -ForegroundColor Yellow
-Write-Host "   (Masukkan password root VPS jika diminta oleh OpenSSH)" -ForegroundColor Gray
+# 2. Persiapkan payload base64 untuk transfer 1-sesi SSH
+$LocalDbBase64 = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($LocalDbPath))
+$RunnerScriptBase64 = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($RunnerScriptPath))
 
-scp -o StrictHostKeyChecking=accept-new $LocalDbPath "${VpsUser}@${VpsHost}:/tmp/academy.admin-seed.json"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ERROR] Gagal mengunggah database ke VPS!" -ForegroundColor Red
-    exit 1
+# Cek apakah SSH Public Key lokal tersedia
+$PubKeyPath = Join-Path $HOME ".ssh\id_ed25519.pub"
+$PubKey = $null
+if (Test-Path $PubKeyPath) {
+    $PubKey = (Get-Content -Path $PubKeyPath -Raw).Trim()
 }
 
-scp -o StrictHostKeyChecking=accept-new $RunnerScriptPath "${VpsUser}@${VpsHost}:/tmp/vps-deploy-runner.sh"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ERROR] Gagal mengunggah script runner ke VPS!" -ForegroundColor Red
-    exit 1
-}
-Write-Host "   OK: File berhasil diunggah ke /tmp di VPS" -ForegroundColor Green
+$Commands = @(
+    "mkdir -p /root/.ssh",
+    "chmod 700 /root/.ssh",
+    "touch /root/.ssh/authorized_keys",
+    "chmod 600 /root/.ssh/authorized_keys"
+)
 
-# 3. Jalankan prosedur deployment di VPS via SSH
-Write-Host "`n[3/3] Menjalankan automasi deployment di VPS..." -ForegroundColor Yellow
-ssh -t -o StrictHostKeyChecking=accept-new "${VpsUser}@${VpsHost}" "bash /tmp/vps-deploy-runner.sh && rm -f /tmp/vps-deploy-runner.sh"
+if ($PubKey) {
+    # Daftarkan SSH Key lokal ke VPS agar deploy berikutnya otomatis tanpa minta password sama sekali
+    $Commands += "grep -qF '$PubKey' /root/.ssh/authorized_keys 2>/dev/null || echo '$PubKey' >> /root/.ssh/authorized_keys"
+}
+
+$Commands += "echo '$LocalDbBase64' | base64 -d > /tmp/academy.admin-seed.json"
+$Commands += "echo '$RunnerScriptBase64' | base64 -d > /tmp/vps-deploy-runner.sh"
+$Commands += "chmod +x /tmp/vps-deploy-runner.sh"
+$Commands += "bash /tmp/vps-deploy-runner.sh"
+$Commands += "rm -f /tmp/vps-deploy-runner.sh"
+
+$RemoteCommand = $Commands -join " && "
+
+# 3. Jalankan melalui 1 koneksi SSH tunggal (hanya 1x prompt password)
+Write-Host "`n[2/2] Menghubungkan ke VPS & menjalankan deployment..." -ForegroundColor Yellow
+Write-Host "   (Cukup masukkan password root VPS 1 kali jika diminta)" -ForegroundColor Gray
+
+ssh -t -o StrictHostKeyChecking=accept-new "${VpsUser}@${VpsHost}" "$RemoteCommand"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[ERROR] Terjadi kegagalan saat menjalankan deployment di VPS!" -ForegroundColor Red
