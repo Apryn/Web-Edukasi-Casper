@@ -1,6 +1,6 @@
 /**
  * SIGNAL CASPER ACADEMY — SPRINT 3
- * PERFORMANCE ANALYTICS ENGINE — TASK 3.2
+ * PERFORMANCE ANALYTICS ENGINE — TASK 3.2 & 3.2.1
  * Core Metrics Domain Types & Result Contracts
  */
 
@@ -20,6 +20,26 @@ export type CalculationStatus =
   | "ALL_BREAKEVEN"
   | "NO_RISK_DATA"
   | "BLOCKED_MULTI_CURRENCY";
+
+export type TradeExclusionReasonCode =
+  | "INVALID_STATUS"
+  | "INVALID_EXIT_DATE"
+  | "INVALID_NET_PNL"
+  | "UNSUPPORTED_CURRENCY"
+  | "CORRUPT_RECORD";
+
+export interface ExclusionReasonSummary {
+  reason: TradeExclusionReasonCode;
+  count: number;
+  description: string;
+}
+
+export interface TradeIntakeDiagnostics {
+  totalInputTrades: number;
+  eligibleTradesCount: number;
+  excludedTradesCount: number;
+  excludedReasons: ExclusionReasonSummary[];
+}
 
 export interface MetricEnvelope<T> {
   value: T;
@@ -64,6 +84,7 @@ export interface ExpectancyResult {
   expectancyFormula1: number | null; // Direct aggregate mean: TotalNetPnl / N
   expectancyFormula2: number | null; // Component model: (Pw * AvgWin) - (Pl * AvgLoss)
   isFormulasReconciled: boolean;
+  exactRationalReconciled: boolean; // Exact BigInt cross-multiplication parity proof
   calculationStatus: CalculationStatus;
 }
 
@@ -100,4 +121,5 @@ export interface CoreMetricsSummary {
     estimatedIncompleteFees: number;
   };
   sampleDisclaimer: string;
+  intakeDiagnostics: TradeIntakeDiagnostics;
 }

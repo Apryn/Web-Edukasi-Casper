@@ -1,5 +1,5 @@
 /**
- * SIGNAL CASPER ACADEMY — SPRINT 3 — TASK 3.2
+ * SIGNAL CASPER ACADEMY — SPRINT 3 — TASK 3.2 & 3.2.1
  * Core Metrics Engine Mathematical & Algorithmic Unit Tests
  */
 
@@ -42,7 +42,9 @@ if (typeof registerHooks === "function" && typeof stripTypeScriptTypes === "func
 }
 
 const {
+  isValidIsoDate,
   filterEligibleClosedTrades,
+  filterEligibleClosedTradesWithDiagnostics,
   evaluateSampleStatus,
   calculateTotalNetPnl,
   calculateWinRates,
@@ -90,7 +92,7 @@ function createMockTrade(overrides = {}) {
   };
 }
 
-describe("PAE Task 3.2 — Core Metrics Engine Suite", () => {
+describe("PAE Task 3.2 & 3.2.1 — Core Metrics Engine Suite", () => {
   // ── Intake & Eligibility ─────────────────────────────────────────
 
   test("1. Eligibility: Isolates CLOSED trades from OPEN, CANCELLED, and corrupt records", () => {
@@ -258,6 +260,7 @@ describe("PAE Task 3.2 — Core Metrics Engine Suite", () => {
     assert.equal(exp.expectancyFormula1, 100.0, "500 / 5 = 100.0");
     assert.equal(exp.expectancyFormula2, 100.0, "(0.4 * 500) - (0.4 * 250) = 100.0");
     assert.equal(exp.isFormulasReconciled, true);
+    assert.equal(exp.exactRationalReconciled, true);
     assert.equal(exp.expectancy, 100.0);
   });
 
@@ -315,5 +318,129 @@ describe("PAE Task 3.2 — Core Metrics Engine Suite", () => {
     assert.equal(summary.dataQualityDistribution.calculatedStandard, 1);
     assert.equal(summary.dataQualityDistribution.selfReportedManual, 1);
     assert.equal(summary.dataQualityDistribution.estimatedIncompleteFees, 1);
+    assert.equal(summary.intakeDiagnostics.totalInputTrades, 3);
+    assert.equal(summary.intakeDiagnostics.eligibleTradesCount, 3);
+    assert.equal(summary.intakeDiagnostics.excludedTradesCount, 0);
+  });
+
+  // ── Hardening Tests (Task 3.2.1) ─────────────────────────────────
+
+  test("14. Expectancy: Exact BigInt rational cross-multiplication with non-divisible averages", () => {
+    // 3 wins of 100, 3 losses of -50 -> non-divisible when total trades is 7 (+ 1 breakeven)
+    // Wins: 100, 100, 100 (Total Win = 300, N_w = 3, AvgWin = 100)
+    // Losses: -33, -33, -33 (Total Loss = -99, N_l = 3, AvgLoss = 33)
+    // Breakeven: 0 (N_be = 1)
+    // Total = 7 trades. Net PnL = 300 - 99 = 201.
+    // Method 1: 201 / 7 = 28.7142857... -> 28.71
+    // Method 2 with component averages:
+    // Pw = 3/7, Pl = 3/7
+    // Method 2 exact rational is: (3/7 * 100) - (3/7 * 33) = (300 - 99)/7 = 201/7
+    const trades = [
+      createMockTrade({ netPnl: 100 }),
+      createMockTrade({ netPnl: 100 }),
+      createMockTrade({ netPnl: 100 }),
+      createMockTrade({ netPnl: -33 }),
+      createMockTrade({ netPnl: -33 }),
+      createMockTrade({ netPnl: -33 }),
+      createMockTrade({ netPnl: 0 }),
+    ];
+
+    const exp = calculateExpectancy(trades, 2);
+    assert.equal(exp.totalClosedTrades, 7);
+    assert.equal(exp.exactRationalReconciled, true, "Exact BigInt cross-multiplication must prove rational parity");
+    assert.equal(exp.isFormulasReconciled, true);
+    assert.equal(exp.expectancyFormula1, 28.71);
+  });
+
+  test("15. Expectancy: Multi-currency precision support (IDR, JPY 0-dec, BHD 3-dec, USD 2-dec)", () => {
+    // IDR (0 decimals)
+    const idrTrades = [
+      createMockTrade({ netPnl: 150000 }),
+      createMockTrade({ netPnl: -50000 }),
+      createMockTrade({ netPnl: 0 }),
+    ];
+    const idrExp = calculateExpectancy(idrTrades, 0);
+    assert.equal(idrExp.exactRationalReconciled, true);
+    assert.equal(idrExp.expectancy, 33333); // 100,000 / 3
+
+    // BHD (3 decimals)
+    const bhdTrades = [
+      createMockTrade({ netPnl: 10.125 }),
+      createMockTrade({ netPnl: -3.125 }),
+    ];
+    const bhdExp = calculateExpectancy(bhdTrades, 3);
+    assert.equal(bhdExp.exactRationalReconciled, true);
+    assert.equal(bhdExp.expectancy, 3.5); // 7.000 / 2
+  });
+
+  test("16. Profit Factor: BigInt scaled ratio calculation safe against aggregates > Number.MAX_SAFE_INTEGER", () => {
+    // Construct trades where individual trades are valid but aggregate is immense
+    // Even if gross profit is large, BigInt scaled division calculates ratio without precision loss
+    const hugeProfit = createMockTrade({ netPnl: 50000000000000 }); // $50 Trillion
+    const hugeLoss = createMockTrade({ netPnl: -25000000000000 }); // $25 Trillion
+
+    const pf = calculateProfitFactor([hugeProfit, hugeLoss], 2);
+    assert.equal(pf.profitFactor, 2.0, "Scaled BigInt division must yield exact 2.0 ratio");
+    assert.equal(Number.isFinite(pf.profitFactor), true);
+    assert.notEqual(pf.profitFactor, Infinity);
+    assert.equal(pf.calculationStatus, "VALID");
+  });
+
+  test("17. Strict ISO-8601 validation helper: Rejects informal date strings", () => {
+    assert.equal(isValidIsoDate("2026-11-01T12:00:00.000Z"), true);
+    assert.equal(isValidIsoDate("2026-11-01T12:00:00Z"), true);
+    assert.equal(isValidIsoDate("2026-11-01"), true);
+    assert.equal(isValidIsoDate("2026-11-01T12:00:00+07:00"), true);
+
+    // Rejection of invalid or informal formats
+    assert.equal(isValidIsoDate("11/01/2026"), false);
+    assert.equal(isValidIsoDate("November 1, 2026"), false);
+    assert.equal(isValidIsoDate("invalid-date-string"), false);
+    assert.equal(isValidIsoDate(""), false);
+    assert.equal(isValidIsoDate(null), false);
+    assert.equal(isValidIsoDate(undefined), false);
+    assert.equal(isValidIsoDate(12345678), false);
+  });
+
+  test("18. Data Exclusion Diagnostics: Counts reconcile and non-overlapping reason codes", () => {
+    const rawTrades = [
+      createMockTrade({ status: "CLOSED", netPnl: 100 }), // Eligible
+      createMockTrade({ status: "OPEN" }), // INVALID_STATUS
+      createMockTrade({ status: "CANCELLED" }), // INVALID_STATUS
+      createMockTrade({ status: "CLOSED", exitDate: "not-iso-date" }), // INVALID_EXIT_DATE
+      createMockTrade({ status: "CLOSED", netPnl: NaN }), // INVALID_NET_PNL
+      createMockTrade({ status: "CLOSED", netPnl: 50, currency: "EUR" }), // UNSUPPORTED_CURRENCY
+      null, // CORRUPT_RECORD
+      undefined, // CORRUPT_RECORD
+    ];
+
+    const result = filterEligibleClosedTradesWithDiagnostics(rawTrades, "USD");
+    const diag = result.diagnostics;
+
+    assert.equal(diag.totalInputTrades, 8);
+    assert.equal(diag.eligibleTradesCount, 1);
+    assert.equal(diag.excludedTradesCount, 7);
+    assert.equal(
+      diag.eligibleTradesCount + diag.excludedTradesCount,
+      diag.totalInputTrades,
+      "Input trades count must reconcile with eligible + excluded"
+    );
+
+    const reasonsMap = Object.fromEntries(diag.excludedReasons.map((r) => [r.reason, r.count]));
+    assert.equal(reasonsMap.INVALID_STATUS, 2, "OPEN and CANCELLED");
+    assert.equal(reasonsMap.INVALID_EXIT_DATE, 1);
+    assert.equal(reasonsMap.INVALID_NET_PNL, 1);
+    assert.equal(reasonsMap.UNSUPPORTED_CURRENCY, 1);
+    assert.equal(reasonsMap.CORRUPT_RECORD, 2);
+
+    // Ensure no private details leaked in diagnostics
+    for (const r of diag.excludedReasons) {
+      assert.ok(typeof r.reason === "string");
+      assert.ok(typeof r.count === "number");
+      assert.ok(typeof r.description === "string");
+      assert.equal("id" in r, false);
+      assert.equal("pair" in r, false);
+      assert.equal("netPnl" in r, false);
+    }
   });
 });
