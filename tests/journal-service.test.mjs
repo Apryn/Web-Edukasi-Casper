@@ -547,6 +547,57 @@ describe("Signal Casper Academy - Trading Account & Journal Core Service Suite",
         return true;
       }
     );
+
+    // Negative plannedRiskAmount on create must be rejected (not silently sanitized with Math.abs)
+    await assert.rejects(
+      createTrade(userAlice, {
+        accountId: aliceAcc1Id,
+        pair: "EURUSD",
+        direction: "LONG",
+        entryDate: new Date().toISOString(),
+        timeframe: "H1",
+        session: "LONDON",
+        entryPrice: 1.08,
+        stopLoss: 1.075,
+        positionSize: 1.0,
+        plannedRiskAmount: -50.0,
+      }),
+      (err) => {
+        assert.ok(err instanceof JournalValidationError);
+        assert.strictEqual(err.statusCode, 422);
+        assert.ok(err.message.includes("plannedRiskAmount cannot be negative"));
+        return true;
+      }
+    );
+
+    // Negative plannedRiskAmount on update must be rejected
+    const validTrd = await createTrade(userAlice, {
+      accountId: aliceAcc1Id,
+      pair: "EURUSD",
+      direction: "LONG",
+      entryDate: new Date().toISOString(),
+      timeframe: "H1",
+      session: "LONDON",
+      entryPrice: 1.08,
+      stopLoss: 1.075,
+      positionSize: 1.0,
+      plannedRiskAmount: 50.0,
+    });
+
+    await assert.rejects(
+      updateTrade(userAlice, validTrd.id, {
+        plannedRiskAmount: -100.0,
+      }),
+      (err) => {
+        assert.ok(err instanceof JournalValidationError);
+        assert.strictEqual(err.statusCode, 422);
+        assert.ok(err.message.includes("plannedRiskAmount cannot be negative"));
+        return true;
+      }
+    );
+
+    // Clean up validTrd so subsequent balance tests on aliceAcc1Id remain pristine
+    await deleteTrade(userAlice, validTrd.id);
   });
 
   test("17. Preserve Manual P&L Quality Tag: SELF_REPORTED_MANUAL & ESTIMATED_INCOMPLETE_FEES", async () => {

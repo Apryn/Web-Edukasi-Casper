@@ -800,6 +800,15 @@ export async function createTrade(
   if (typeof input.positionSize !== "number" || input.positionSize <= 0) {
     throw new JournalValidationError("positionSize must be a positive number.");
   }
+  if (input.plannedRiskAmount !== undefined && input.plannedRiskAmount !== null) {
+    if (
+      typeof input.plannedRiskAmount !== "number" ||
+      !Number.isFinite(input.plannedRiskAmount) ||
+      input.plannedRiskAmount < 0
+    ) {
+      throw new JournalValidationError("plannedRiskAmount cannot be negative.");
+    }
+  }
 
   const status: TradeStatus = input.status || "OPEN";
   const now = new Date().toISOString();
@@ -905,8 +914,8 @@ export async function createTrade(
         takeProfit: input.takeProfit,
         positionSize: input.positionSize,
         plannedRiskAmount:
-          input.plannedRiskAmount !== undefined
-            ? roundToDecimals(Math.abs(input.plannedRiskAmount), decimals)
+          input.plannedRiskAmount !== undefined && input.plannedRiskAmount !== null
+            ? roundToDecimals(input.plannedRiskAmount, decimals)
             : undefined,
         grossPnl,
         commission,
@@ -1078,6 +1087,16 @@ export async function updateTrade(
       }
       const dataQuality = input.dataQuality || existing.dataQuality;
 
+      if (input.plannedRiskAmount !== undefined && input.plannedRiskAmount !== null) {
+        if (
+          typeof input.plannedRiskAmount !== "number" ||
+          !Number.isFinite(input.plannedRiskAmount) ||
+          input.plannedRiskAmount < 0
+        ) {
+          throw new JournalValidationError("plannedRiskAmount cannot be negative.");
+        }
+      }
+
       const updatedTrade: TradeRecord = {
         ...existing,
         pair: input.pair ? input.pair.trim().toUpperCase() : existing.pair,
@@ -1100,7 +1119,9 @@ export async function updateTrade(
             : existing.positionSize,
         plannedRiskAmount:
           input.plannedRiskAmount !== undefined
-            ? roundToDecimals(Math.abs(input.plannedRiskAmount), decimals)
+            ? input.plannedRiskAmount === null
+              ? undefined
+              : roundToDecimals(input.plannedRiskAmount, decimals)
             : existing.plannedRiskAmount,
         grossPnl,
         commission,
