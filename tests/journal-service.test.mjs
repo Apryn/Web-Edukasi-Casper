@@ -108,11 +108,13 @@ const {
   getUserTombstonePath,
   ensureJournalDirectories,
   wipeUserJournal,
+  rebuildJournalIndex,
 } = await import("../lib/journal-storage.ts");
 
 describe("Signal Casper Academy - Trading Account & Journal Core Service Suite", () => {
   const dataDir = path.join(process.cwd(), "data");
   const journalsDir = path.join(dataDir, "journals");
+  const corruptedDir = path.join(journalsDir, "corrupted");
   const backupsDir = path.join(dataDir, "backups", "journals");
 
   const userAlice = `srv_alice_${Date.now()}`;
@@ -134,28 +136,27 @@ describe("Signal Casper Academy - Trading Account & Journal Core Service Suite",
   });
 
   after(() => {
-    // Cleanup test partitions
-    for (const u of createdTestUsers) {
-      try {
-        const pPath = getUserPartitionPath(u);
-        if (fs.existsSync(pPath)) fs.unlinkSync(pPath);
-      } catch {}
-      try {
-        const tPath = getUserTombstonePath(u);
-        if (fs.existsSync(tPath)) fs.unlinkSync(tPath);
-      } catch {}
-      try {
-        const recPath = path.join(journalsDir, `u_${u}.recovery_required`);
-        if (fs.existsSync(recPath)) fs.unlinkSync(recPath);
-      } catch {}
+    // Cleanup all test partitions created by this suite (srv_* and usr_*)
+    const isSuiteFile = (f) =>
+      f.startsWith("u_srv_") ||
+      f.startsWith("u_usr_") ||
+      createdTestUsers.some((u) => f.startsWith(`u_${u}.`));
 
-      if (fs.existsSync(backupsDir)) {
+    for (const dir of [journalsDir, corruptedDir, backupsDir]) {
+      if (fs.existsSync(dir)) {
         try {
-          const files = fs.readdirSync(backupsDir).filter((f) => f.startsWith(`u_${u}.`));
-          for (const f of files) fs.unlinkSync(path.join(backupsDir, f));
+          const files = fs.readdirSync(dir).filter(isSuiteFile);
+          for (const f of files) {
+            try {
+              fs.unlinkSync(path.join(dir, f));
+            } catch {}
+          }
         } catch {}
       }
     }
+    try {
+      rebuildJournalIndex();
+    } catch {}
   });
 
   let aliceAcc1Id = "";

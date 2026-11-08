@@ -71,6 +71,7 @@ const {
   getDatabaseHealth,
   STATIC_ID_TO_SLUG,
   STATIC_SLUG_TO_ID,
+  setDatabasePathForTest,
 } = await import("../lib/db.ts");
 
 const {
@@ -107,7 +108,7 @@ if (tsHook && typeof tsHook.deregister === "function") {
 describe("Sprint 2 Task 3.3 — Deep Functional, Security & Data Integrity QA", () => {
   const dataDir = path.join(process.cwd(), "data");
   const dbFile = path.join(dataDir, "academy.json");
-  let pristineSnapshot = null;
+  const isolatedDbFile = path.join(dataDir, `academy.test.qa.${process.pid}.${Date.now()}.json`);
 
   const adminUser = {
     id: "6b9ba627-6741-4ee6-bf50-892469db05bf",
@@ -132,13 +133,23 @@ describe("Sprint 2 Task 3.3 — Deep Functional, Security & Data Integrity QA", 
 
   before(() => {
     if (fs.existsSync(dbFile)) {
-      pristineSnapshot = fs.readFileSync(dbFile, "utf8");
+      fs.copyFileSync(dbFile, isolatedDbFile);
+    } else {
+      fs.writeFileSync(
+        isolatedDbFile,
+        JSON.stringify({ users: [], course_progress: [], quiz_submissions: [] }),
+        "utf8"
+      );
     }
+    setDatabasePathForTest(isolatedDbFile);
   });
 
   after(() => {
-    if (pristineSnapshot) {
-      fs.writeFileSync(dbFile, pristineSnapshot, "utf8");
+    setDatabasePathForTest(null);
+    if (fs.existsSync(isolatedDbFile)) {
+      try {
+        fs.unlinkSync(isolatedDbFile);
+      } catch {}
     }
   });
 

@@ -47,6 +47,7 @@ const {
   createUser,
   isValidDatabaseSchema,
   getDatabase,
+  setDatabasePathForTest,
 } = await import("../lib/db.ts");
 
 const { hashPassword } = await import("../lib/auth.ts");
@@ -82,18 +83,29 @@ function makeRequest(url, body, ipHeaders = {}) {
 describe("Signal Casper Academy - Sprint 2 Task 1: Authentication Rate Limiting Tests", () => {
   const dataDir = path.join(process.cwd(), "data");
   const dbFile = path.join(dataDir, "academy.json");
-  const testRateLimitFile = path.join(dataDir, "rate-limits.test.json");
+  const isolatedDbFile = path.join(dataDir, `academy.test.rl.${process.pid}.${Date.now()}.json`);
+  const testRateLimitFile = path.join(dataDir, `rate-limits.test.${process.pid}.${Date.now()}.json`);
   const prodRateLimitFile = path.join(dataDir, "rate-limits.json");
 
   let pristineDbSnapshot = null;
   let fakeNow = 1_700_000_000_000;
   let testStudentEmail = "";
   const testStudentPassword = "SecurePassword123!";
+  let cachedPasswordHash = null;
 
   before(async () => {
     if (fs.existsSync(dbFile)) {
       pristineDbSnapshot = fs.readFileSync(dbFile, "utf8");
+      fs.writeFileSync(isolatedDbFile, pristineDbSnapshot, "utf8");
+    } else {
+      fs.writeFileSync(
+        isolatedDbFile,
+        JSON.stringify({ users: [], course_progress: [], quiz_submissions: [] }),
+        "utf8"
+      );
     }
+
+    setDatabasePathForTest(isolatedDbFile);
 
     configureRateLimitStoreForTest({
       filePath: testRateLimitFile,
@@ -101,22 +113,38 @@ describe("Signal Casper Academy - Sprint 2 Task 1: Authentication Rate Limiting 
     });
     setRateLimitClockForTest(() => fakeNow);
 
-    // Create a temporary test user for login verification (restored in `after`)
     testStudentEmail = `ratelimit_student_${Date.now()}@casper.com`;
-    const passwordHash = await hashPassword(testStudentPassword);
+    cachedPasswordHash = await hashPassword(testStudentPassword);
     createUser({
       id: "rl-user-" + crypto.randomUUID(),
       email: testStudentEmail,
       name: "Rate Limit Test User",
-      passwordHash,
+      passwordHash: cachedPasswordHash,
       role: "USER",
     });
   });
 
-  beforeEach(() => {
+  async function ensureTestStudentUser() {
+    const existing = findUserByEmail(testStudentEmail);
+    if (!existing) {
+      if (!cachedPasswordHash) {
+        cachedPasswordHash = await hashPassword(testStudentPassword);
+      }
+      createUser({
+        id: "rl-user-" + crypto.randomUUID(),
+        email: testStudentEmail,
+        name: "Rate Limit Test User",
+        passwordHash: cachedPasswordHash,
+        role: "USER",
+      });
+    }
+  }
+
+  beforeEach(async () => {
     fakeNow = 1_700_000_000_000;
     setRateLimitClockForTest(() => fakeNow);
     resetRateLimitAllForTest();
+    await ensureTestStudentUser();
   });
 
   after(() => {
@@ -126,19 +154,22 @@ describe("Signal Casper Academy - Sprint 2 Task 1: Authentication Rate Limiting 
       filePath: null,
       resetMemory: true,
     });
+    setDatabasePathForTest(null);
 
+    if (fs.existsSync(isolatedDbFile)) {
+      try {
+        fs.unlinkSync(isolatedDbFile);
+      } catch {}
+    }
     if (fs.existsSync(testRateLimitFile)) {
-      fs.unlinkSync(testRateLimitFile);
-    }
-    if (fs.existsSync(prodRateLimitFile)) {
-      fs.unlinkSync(prodRateLimitFile);
-    }
-    if (pristineDbSnapshot) {
-      fs.writeFileSync(dbFile, pristineDbSnapshot, "utf8");
+      try {
+        fs.unlinkSync(testRateLimitFile);
+      } catch {}
     }
   });
 
   test("1. Login normal tetap berhasil", async () => {
+    await ensureTestStudentUser();
     const req = makeRequest(
       "http://localhost:3000/api/auth/login",
       { email: testStudentEmail, password: testStudentPassword },
@@ -254,6 +285,7 @@ describe("Signal Casper Academy - Sprint 2 Task 1: Authentication Rate Limiting 
 
     // Majukan fake clock melewati 15 menit (901 detik) -> blokir berakhir otomatis
     fakeNow += 15 * 60 * 1000 + 1000;
+    await ensureTestStudentUser();
     const resAfterUnblock = await processLoginRequest(req6, {
       email: testStudentEmail,
       password: testStudentPassword,
@@ -315,6 +347,7 @@ describe("Signal Casper Academy - Sprint 2 Task 1: Authentication Rate Limiting 
 
     assert.equal(checkLoginRateLimit(ip).count, 4);
 
+    await ensureTestStudentUser();
     const reqSuccess = makeRequest(
       "http://localhost:3000/api/auth/login",
       { email: testStudentEmail, password: testStudentPassword },
@@ -405,6 +438,7 @@ describe("Signal Casper Academy - Sprint 2 Task 1: Authentication Rate Limiting 
     );
     assert.equal(blockedCheck.status, 429);
 
+    await ensureTestStudentUser();
     const cleanCheck = await processLoginRequest(
       makeRequest(
         "http://localhost:3000/api/auth/login",

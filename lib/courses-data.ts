@@ -390,7 +390,13 @@ function loadServerCustomCourses(): Course[] {
         ? getBuiltin("node:path")
         : (eval("require") as NodeRequire)("node:path")
     ) as typeof import("node:path");
-    const dbPath = path.join(process.cwd(), "data", "academy.json");
+    const testDbPath =
+      process.env.NODE_ENV !== "production"
+        ? (globalThis as unknown as { __SC_TEST_DB_PATH__?: string }).__SC_TEST_DB_PATH__
+        : undefined;
+    const dbPath = testDbPath
+      ? path.resolve(testDbPath)
+      : path.join(process.cwd(), "data", "academy.json");
     if (!fs.existsSync(dbPath)) return [];
     const raw = fs.readFileSync(dbPath, "utf8");
     const parsed = JSON.parse(raw);

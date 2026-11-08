@@ -69,8 +69,35 @@ export interface DatabaseHealth {
 // ── Directories & File Paths ─────────────────────────────────────
 const dataDir = path.join(process.cwd(), "data");
 const backupDir = path.join(dataDir, "backups");
-const dbFilePath = path.join(dataDir, "academy.json");
+const defaultDbFilePath = path.join(dataDir, "academy.json");
+let dbFilePath = defaultDbFilePath;
 const sqliteLegacyPath = path.join(dataDir, "academy.db");
+
+/**
+ * Test isolation hook: allows test suites to redirect DB operations to an isolated scratch DB inside data/.
+ * Strictly blocked in production runtime and never reachable from user requests.
+ */
+export function setDatabasePathForTest(customPath: string | null): void {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("[SECURITY] setDatabasePathForTest is strictly forbidden in production runtime.");
+  }
+  const g = globalThis as unknown as { __SC_TEST_DB_PATH__?: string };
+  if (customPath) {
+    const resolved = path.resolve(customPath);
+    const resolvedDataDir = path.resolve(dataDir);
+    if (!resolved.startsWith(resolvedDataDir + path.sep)) {
+      throw new Error("[SECURITY] Test database path must reside within the data/ directory.");
+    }
+    g.__SC_TEST_DB_PATH__ = resolved;
+    dbFilePath = resolved;
+  } else {
+    delete g.__SC_TEST_DB_PATH__;
+    dbFilePath = defaultDbFilePath;
+  }
+  cache = null;
+  lastKnownMtimeMs = 0;
+  lastKnownSizeBytes = 0;
+}
 
 // Ensure directories exist
 function ensureDirectories(): void {
@@ -308,6 +335,26 @@ function loadDatabase(): DatabaseSchema {
   return cache;
 }
 
+function atomicRenameWithRetry(src: string, dest: string, maxRetries = 10, delayMs = 15): void {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      fs.renameSync(src, dest);
+      return;
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (
+        (code === "EPERM" || code === "EBUSY" || code === "EACCES") &&
+        attempt < maxRetries - 1
+      ) {
+        const start = Date.now();
+        while (Date.now() - start < delayMs) {}
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 // ── Robust Atomic Write with Physical Disk Sync & Rollback ───────
 function persistDirect(data: DatabaseSchema): void {
   ensureDirectories();
@@ -327,8 +374,8 @@ function persistDirect(data: DatabaseSchema): void {
     fs.closeSync(fd);
     fd = null;
 
-    // Atomic replace
-    fs.renameSync(tmpPath, dbFilePath);
+    // Atomic replace with Windows EPERM retry tolerance
+    atomicRenameWithRetry(tmpPath, dbFilePath);
     const postStat = fs.statSync(dbFilePath);
     lastKnownMtimeMs = postStat.mtimeMs;
     lastKnownSizeBytes = postStat.size;

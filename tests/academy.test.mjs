@@ -67,6 +67,7 @@ const {
   deleteCustomCourse,
   executeTransactionForTest,
   isValidDatabaseSchema,
+  setDatabasePathForTest,
 } = await import("../lib/db.ts");
 
 // Auth & Session helpers
@@ -118,20 +119,30 @@ if (tsHook && typeof tsHook.deregister === "function") {
 describe("Signal Casper Academy - Comprehensive End-to-End System Tests", () => {
   const dataDir = path.join(process.cwd(), "data");
   const dbFile = path.join(dataDir, "academy.json");
-
+  const isolatedDbFile = path.join(dataDir, `academy.test.academy.${process.pid}.${Date.now()}.json`);
   let pristineSnapshot = null;
 
   before(() => {
-    // Snapshot the database state to guarantee zero pollution
+    // Snapshot original data/academy.json for test 16 verification
     if (fs.existsSync(dbFile)) {
       pristineSnapshot = fs.readFileSync(dbFile, "utf8");
+      fs.copyFileSync(dbFile, isolatedDbFile);
+    } else {
+      fs.writeFileSync(
+        isolatedDbFile,
+        JSON.stringify({ users: [], course_progress: [], quiz_submissions: [] }),
+        "utf8"
+      );
     }
+    setDatabasePathForTest(isolatedDbFile);
   });
 
   after(() => {
-    // Restore original state
-    if (pristineSnapshot) {
-      fs.writeFileSync(dbFile, pristineSnapshot, "utf8");
+    setDatabasePathForTest(null);
+    if (fs.existsSync(isolatedDbFile)) {
+      try {
+        fs.unlinkSync(isolatedDbFile);
+      } catch {}
     }
   });
 
@@ -305,7 +316,7 @@ describe("Signal Casper Academy - Comprehensive End-to-End System Tests", () => 
     });
 
     // Baca ulang langsung dari file fisik filesystem
-    const rawDiskContent = fs.readFileSync(dbFile, "utf8");
+    const rawDiskContent = fs.readFileSync(isolatedDbFile, "utf8");
     const parsedDisk = JSON.parse(rawDiskContent);
     const diskRecord = parsedDisk.course_progress.find(
       (p) => p.user_id === testUserId && p.course_slug === testSlug

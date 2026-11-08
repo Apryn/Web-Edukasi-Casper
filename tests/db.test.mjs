@@ -33,23 +33,33 @@ const {
   createBackup,
   isValidDatabaseSchema,
   executeTransactionForTest,
+  setDatabasePathForTest,
 } = await import("../lib/db.ts");
 
 describe("Signal Casper Academy - JSON Database Audit & Verification Tests", () => {
   const dataDir = path.join(process.cwd(), "data");
-  const dbFile = path.join(dataDir, "academy.json");
+  const baseDbFile = path.join(dataDir, "academy.json");
+  const isolatedDbFile = path.join(dataDir, `academy.test.db.${process.pid}.${Date.now()}.json`);
 
-  let preTestSnapshot = null;
   before(() => {
-    if (fs.existsSync(dbFile)) {
-      preTestSnapshot = fs.readFileSync(dbFile, "utf8");
+    if (fs.existsSync(baseDbFile)) {
+      fs.copyFileSync(baseDbFile, isolatedDbFile);
+    } else {
+      fs.writeFileSync(
+        isolatedDbFile,
+        JSON.stringify({ users: [], course_progress: [], quiz_submissions: [] }),
+        "utf8"
+      );
     }
+    setDatabasePathForTest(isolatedDbFile);
   });
 
   after(() => {
-    // Restore pristine database state so tests never pollute academy.json
-    if (preTestSnapshot) {
-      fs.writeFileSync(dbFile, preTestSnapshot, "utf8");
+    setDatabasePathForTest(null);
+    if (fs.existsSync(isolatedDbFile)) {
+      try {
+        fs.unlinkSync(isolatedDbFile);
+      } catch {}
     }
     // Clean any test quarantine files
     try {
@@ -67,7 +77,7 @@ describe("Signal Casper Academy - JSON Database Audit & Verification Tests", () 
   test("1. Database Initialization & Legacy SQLite Migration", () => {
     const db = getDatabase();
     assert.ok(isValidDatabaseSchema(db), "Database schema must be valid");
-    assert.ok(fs.existsSync(dbFile), "academy.json must exist after getDatabase");
+    assert.ok(fs.existsSync(isolatedDbFile), "isolated test db must exist after getDatabase");
 
     // Verify master admin in academy.json
     const masterAdmin = findUserByEmail("apriyanriyan23@gmail.com");
@@ -202,7 +212,7 @@ describe("Signal Casper Academy - JSON Database Audit & Verification Tests", () 
     });
 
     // Verify raw file on disk directly (bypassing any in-memory cache)
-    const rawOnDisk = fs.readFileSync(dbFile, "utf8");
+    const rawOnDisk = fs.readFileSync(isolatedDbFile, "utf8");
     const parsed = JSON.parse(rawOnDisk);
     const userOnDisk = parsed.users.find((u) => u.id === testId);
     assert.ok(userOnDisk, "Data must be physically present on disk");
@@ -215,8 +225,8 @@ describe("Signal Casper Academy - JSON Database Audit & Verification Tests", () 
     assert.ok(backupCreated, "Backup must be created");
     assert.ok(fs.existsSync(backupCreated), "Backup file must physically exist");
 
-    // 2. Corrupt academy.json intentionally with malformed JSON
-    fs.writeFileSync(dbFile, "{ corrupt_json_test: true, missing_closing_brace: ...", "utf8");
+    // 2. Corrupt isolated test db intentionally with malformed JSON
+    fs.writeFileSync(isolatedDbFile, "{ corrupt_json_test: true, missing_closing_brace: ...", "utf8");
 
     // 3. Trigger loadDatabase() via getDatabaseHealth()
     const health = getDatabaseHealth();

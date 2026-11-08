@@ -27,13 +27,16 @@ import {
   Trophy,
   Printer,
   X,
+  BarChart3,
 } from "lucide-react";
+import StudentJournalWorkspace from "./StudentJournalWorkspace";
 
 export default function DashboardPage() {
   const [allCourses, setAllCourses] = useState<Course[]>(() => getStaticCourses());
   const [progressMap, setProgressMap] = useState<Record<string, UserCourseProgress>>({});
   const [currentUser, setCurrentUser] = useState<{ id?: string; name?: string; email?: string; role?: string } | null>(null);
   const [selectedCertCourse, setSelectedCertCourse] = useState<Course | null>(null);
+  const [dashboardMode, setDashboardMode] = useState<"learning" | "journal">("journal");
 
   useEffect(() => {
     // 1. Load initial local progress for active session user (if any)
@@ -207,7 +210,48 @@ export default function DashboardPage() {
         )}
       </section>
 
+      {/* Portal Mode Switcher: Trading Journal & Analytics vs Academic Curriculum */}
+      <section className="wrap dashboard-mode-bar">
+        <div className="dashboard-mode-tabs">
+          <button
+            type="button"
+            className={`dashboard-mode-tab ${dashboardMode === "journal" ? "active" : ""}`}
+            onClick={() => setDashboardMode("journal")}
+          >
+            <BarChart3 size={16} /> Trading Journal &amp; Performance Analytics
+          </button>
+          <button
+            type="button"
+            className={`dashboard-mode-tab ${dashboardMode === "learning" ? "active" : ""}`}
+            onClick={() => setDashboardMode("learning")}
+          >
+            <GraduationCap size={16} /> Kurikulum Akademi &amp; Sertifikat ({enrolledCourses.length})
+          </button>
+        </div>
+      </section>
+
+      {dashboardMode === "journal" && (
+        <section className="wrap journal-outer-section">
+          {currentUser?.id ? (
+            <StudentJournalWorkspace currentUser={currentUser} />
+          ) : (
+            <div className="empty-dashboard-box">
+              <BarChart3 size={36} />
+              <h3>Masuk untuk Membuka Jurnal Trading &amp; Analitik Performa</h3>
+              <p>
+                Jurnal Trading Kuantitatif disimpan secara terisolasi dan aman di server Casper Academy untuk setiap akun siswa.
+              </p>
+              <Link href="/login" className="button button-primary">
+                Login Akun Siswa <ArrowRight size={16} />
+              </Link>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Metrics Row */}
+      {dashboardMode === "learning" && (
+      <>
       <section className="dashboard-metrics wrap">
         <div className="metric-card">
           <div className="metric-icon">
@@ -383,6 +427,8 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
+      </>
+      )}
 
       {/* Certificate Modal */}
       {selectedCertCourse && (

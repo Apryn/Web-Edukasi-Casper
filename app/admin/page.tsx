@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CourseEditorWorkspace from "./CourseEditorWorkspace";
 import type { Course, CoursePublicationStatus } from "@/lib/types";
+import type { AdminStudentIntelligenceReport } from "@/lib/admin-student-intelligence";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -79,9 +80,9 @@ export default function AdminPage() {
     role?: string;
   } | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-  const [activeTab, setActiveTab] = useState<"stats" | "courses" | "users" | "quizzes">(
-    "courses"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "stats" | "courses" | "users" | "quizzes" | "intelligence"
+  >("courses");
 
   // Admin Data
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -89,6 +90,8 @@ export default function AdminPage() {
   const [submissions, setSubmissions] = useState<AdminSubmission[]>([]);
   const [courses, setCourses] = useState<EnrichedAdminCourse[]>([]);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
+  const [intelligence, setIntelligence] =
+    useState<AdminStudentIntelligenceReport | null>(null);
 
   // Course Editor State
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
@@ -111,7 +114,10 @@ export default function AdminPage() {
 
   const loadAdminData = async () => {
     try {
-      const res = await fetch("/api/admin/overview");
+      const [res, intelRes] = await Promise.all([
+        fetch("/api/admin/overview"),
+        fetch("/api/admin/journal-intelligence"),
+      ]);
       if (!res.ok) {
         setIsAuthorized(false);
         return;
@@ -123,6 +129,10 @@ export default function AdminPage() {
       setSubmissions(data.recentSubmissions || []);
       setCourses(data.courses || []);
       setAuditLogs(data.auditLogs || []);
+      if (intelRes.ok) {
+        const intelData = await intelRes.json();
+        setIntelligence(intelData.intelligence || intelData || null);
+      }
     } catch {
       setIsAuthorized(false);
     }
@@ -561,6 +571,15 @@ export default function AdminPage() {
             }}
           >
             Riwayat Evaluasi Kuis ({submissions.length})
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "intelligence" ? "active" : ""}`}
+            onClick={() => {
+              setEditingCourseId(null);
+              setActiveTab("intelligence");
+            }}
+          >
+            Student Intelligence &amp; Jurnal Kohort
           </button>
         </div>
 
@@ -1376,6 +1395,232 @@ export default function AdminPage() {
                   })}
                 </tbody>
               </table>
+            )}
+          </div>
+        )}
+
+        {/* TAB 5: Admin Student Intelligence (Anonymized Aggregate Only) */}
+        {activeTab === "intelligence" && (
+          <div className="admin-intelligence-panel">
+            <div className="journal-privacy-explainer" style={{ marginBottom: "22px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                  marginBottom: "8px",
+                }}
+              >
+                <strong style={{ color: "var(--cyan)", fontSize: "13px" }}>
+                  <ShieldCheck
+                    size={15}
+                    style={{ display: "inline", marginRight: "6px", verticalAlign: "-2px" }}
+                  />
+                  PRIVACY GUARANTEE: {intelligence?.privacyGuarantee || "STRICT_ANONYMIZED_AGGREGATE_ONLY"}
+                </strong>
+                <span className="journal-status-pill">
+                  STATUS KOHORT: {intelligence?.cohortRepresentativenessStatus || "EMPTY_COHORT"}
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: "12px", color: "#94a3b8" }}>
+                {intelligence?.cohortDisclaimer ||
+                  "Laporan ini hanya menampilkan statistik edukasi agregat anonim. Tidak ada nominal P/L pribadi, saldo akun, maupun catatan trade siswa yang diekspos ke Administrator."}
+              </p>
+            </div>
+
+            {intelligence ? (
+              <div className="journal-section-stack">
+                {/* Cohort Adoption & Completeness Grid */}
+                <div className="admin-stats-grid">
+                  <div className="admin-stat-card">
+                    <small>Adopsi Jurnal Siswa</small>
+                    <strong>
+                      {intelligence.population.studentsWithJournalCount} /{" "}
+                      {intelligence.population.totalRegisteredStudents}
+                    </strong>
+                    <div style={{ fontSize: "11px", color: "#7f91a3", marginTop: "4px" }}>
+                      Adoption Rate: {intelligence.population.journalAdoptionRate.toFixed(1)}% (Aktif:{" "}
+                      {intelligence.population.activeJournalingStudentsCount})
+                    </div>
+                  </div>
+
+                  <div className="admin-stat-card">
+                    <small>Total Trade Kohort</small>
+                    <strong>{intelligence.journalActivity.totalTradesAcrossCohort}</strong>
+                    <div style={{ fontSize: "11px", color: "#7f91a3", marginTop: "4px" }}>
+                      Closed: {intelligence.journalActivity.totalClosedTradesAcrossCohort} · Open:{" "}
+                      {intelligence.journalActivity.totalOpenTradesAcrossCohort}
+                    </div>
+                  </div>
+
+                  <div className="admin-stat-card">
+                    <small>Kelengkapan Jurnal &amp; Risiko</small>
+                    <strong>
+                      {intelligence.journalActivity.journalCompletenessRate.toFixed(1)}%
+                    </strong>
+                    <div style={{ fontSize: "11px", color: "#7f91a3", marginTop: "4px" }}>
+                      Adopsi Planned Risk (1R):{" "}
+                      {intelligence.journalActivity.riskManagementAdoptionRate.toFixed(1)}%
+                    </div>
+                  </div>
+
+                  <div className="admin-stat-card">
+                    <small>Status Consent Mentor</small>
+                    <strong>{intelligence.consentOverview.activeConsentsCount} Aktif</strong>
+                    <div style={{ fontSize: "11px", color: "#7f91a3", marginTop: "4px" }}>
+                      Analytics-Only: {intelligence.consentOverview.analyticsOnlyScopeCount} · Full:{" "}
+                      {intelligence.consentOverview.fullJournalScopeCount} · Dicabut:{" "}
+                      {intelligence.consentOverview.revokedOrExpiredConsentsCount}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Distribution Cards Row */}
+                <div className="journal-intel-two-col">
+                  <div className="journal-panel">
+                    <h4>Distribusi Tipe Akun Siswa</h4>
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Tipe Akun</th>
+                          <th>Jumlah Akun</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>PROP FIRM</td>
+                          <td>
+                            <strong>{intelligence.accountTypeDistribution.PROP_FIRM}</strong>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>LIVE</td>
+                          <td>
+                            <strong>{intelligence.accountTypeDistribution.LIVE}</strong>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>DEMO</td>
+                          <td>
+                            <strong>{intelligence.accountTypeDistribution.DEMO}</strong>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>PAPER</td>
+                          <td>
+                            <strong>{intelligence.accountTypeDistribution.PAPER}</strong>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="journal-panel">
+                    <h4>Distribusi Sample Confidence Siswa</h4>
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Kategori Sampel</th>
+                          <th>Jumlah Siswa</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>SUFFICIENT (≥ 30 Closed Trades)</td>
+                          <td>
+                            <strong style={{ color: "var(--green)" }}>
+                              {intelligence.sampleStatusDistribution.SUFFICIENT}
+                            </strong>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>INSUFFICIENT (&lt; 30 Closed Trades)</td>
+                          <td>
+                            <strong style={{ color: "#fde047" }}>
+                              {intelligence.sampleStatusDistribution.INSUFFICIENT}
+                            </strong>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>NO_DATA (0 Closed Trades)</td>
+                          <td>
+                            <strong>{intelligence.sampleStatusDistribution.NO_DATA}</strong>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Top Execution Mistakes & Top Emotions */}
+                <div className="journal-intel-two-col">
+                  <div className="journal-panel">
+                    <h4>Top Kesalahan Eksekusi Kohort (Kurikulum Target)</h4>
+                    {intelligence.behavioralInsights.topMistakes.length > 0 ? (
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>Kesalahan Eksekusi</th>
+                            <th>Frekuensi</th>
+                            <th>Porsi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {intelligence.behavioralInsights.topMistakes.map((m) => (
+                            <tr key={m.mistake}>
+                              <td>
+                                <strong>{m.label}</strong>
+                              </td>
+                              <td>{m.count} Trade</td>
+                              <td>{m.percentage.toFixed(1)}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="journal-empty-inline">
+                        Belum ada data kesalahan eksekusi yang tercatat.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="journal-panel">
+                    <h4>Distribusi Psikologi &amp; Emosi Kohort</h4>
+                    {intelligence.behavioralInsights.topEmotions.length > 0 ? (
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>Kondisi Emosi</th>
+                            <th>Frekuensi</th>
+                            <th>Porsi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {intelligence.behavioralInsights.topEmotions.map((em) => (
+                            <tr key={em.emotion}>
+                              <td>
+                                <strong>{em.label}</strong>
+                              </td>
+                              <td>{em.count} Trade</td>
+                              <td>{em.percentage.toFixed(1)}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="journal-empty-inline">
+                        Belum ada data psikologi/emosi yang tercatat.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="journal-empty-inline">
+                Memuat laporan agregat Student Intelligence...
+              </div>
             )}
           </div>
         )}

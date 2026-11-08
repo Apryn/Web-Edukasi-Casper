@@ -493,6 +493,26 @@ export function readUserPartition(
   }
 }
 
+function atomicRenameWithRetry(src: string, dest: string, maxRetries = 10, delayMs = 15): void {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      fs.renameSync(src, dest);
+      return;
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (
+        (code === "EPERM" || code === "EBUSY" || code === "EACCES") &&
+        attempt < maxRetries - 1
+      ) {
+        const start = Date.now();
+        while (Date.now() - start < delayMs) {}
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 // ── Core Write Partition Operation ───────────────────────────────
 
 export interface WritePartitionOptions {
@@ -567,7 +587,7 @@ export function writeUserPartitionSync(
     fd = null;
 
     // Atomic Replace
-    fs.renameSync(tmpPath, finalPath);
+    atomicRenameWithRetry(tmpPath, finalPath);
 
     // Cross-OS Durability Handling
     if (process.platform !== "win32") {
@@ -599,7 +619,7 @@ export function writeUserPartitionSync(
         `.u_${userId}.backup.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.json`
       );
       fs.copyFileSync(finalPath, tmpBackupPath);
-      fs.renameSync(tmpBackupPath, backupPath);
+      atomicRenameWithRetry(tmpBackupPath, backupPath);
       rotateUserBackups(userId);
     } catch (bErr) {
       console.warn("[JOURNAL STORAGE] Failed to create backup snapshot:", bErr);
@@ -764,17 +784,25 @@ export async function wipeUserJournal(
 
 // ── Stale Temp Files Cleanup on Startup ───────────────────────────
 
-export function cleanupStaleTempFiles(maxAgeMs = STALE_TEMP_FILE_MAX_AGE_MS): number {
+export function cleanupStaleTempFiles(
+  maxAgeMs = STALE_TEMP_FILE_MAX_AGE_MS,
+  targetDirs?: string[],
+  prefixFilter?: string
+): number {
   ensureJournalDirectories();
   let cleanedCount = 0;
   try {
     const now = Date.now();
-    const dirsToScan = [JOURNALS_DIR, BACKUPS_DIR];
+    const dirsToScan =
+      targetDirs && targetDirs.length > 0
+        ? targetDirs
+        : [JOURNALS_DIR, BACKUPS_DIR];
     for (const dir of dirsToScan) {
       if (!fs.existsSync(dir)) continue;
       const files = fs.readdirSync(dir);
       for (const file of files) {
         if (file.includes(".tmp")) {
+          if (prefixFilter && !file.startsWith(prefixFilter)) continue;
           const full = path.join(dir, file);
           try {
             const stat = fs.statSync(full);

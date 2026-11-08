@@ -37,6 +37,14 @@ export type MarketSession = "ASIA" | "LONDON" | "NEW_YORK" | "LONDON_NY_OVERLAP"
 
 export type TimeFrame = "M1" | "M5" | "M15" | "H1" | "H4" | "D1" | "W1";
 
+export type MarketCondition =
+  | "TRENDING_BULL"
+  | "TRENDING_BEAR"
+  | "RANGING"
+  | "HIGH_VOLATILITY"
+  | "LOW_LIQUIDITY"
+  | "NEWS_DRIVEN";
+
 export type AttachmentType = "PRE_ENTRY" | "POST_EXIT";
 
 export type DataQualityTag =
@@ -149,6 +157,7 @@ export interface TradeRecord {
   entryChecklist: Record<string, boolean>;
   emotion: EmotionState;
   mistake: ExecutionMistake;
+  marketCondition?: MarketCondition;
   notes?: string;
   attachments: TradeAttachment[];
   dataQuality: DataQualityTag;
@@ -235,6 +244,7 @@ export interface JournalAuditRecord {
   action: string; // e.g. "MENTOR_JOURNAL_INSPECT", "CONSENT_REVOKE"
   studentId: string;
   scope?: ConsentScope;
+  summary?: string;
   ipHash?: string;
 }
 

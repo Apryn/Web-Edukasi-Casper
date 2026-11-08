@@ -24,6 +24,7 @@ import type {
   TradeOutcome,
   TimeFrame,
   MarketSession,
+  MarketCondition,
   EmotionState,
   ExecutionMistake,
   DataQualityTag,
@@ -695,6 +696,7 @@ export interface CreateTradeInput {
   entryChecklist?: Record<string, boolean>;
   emotion?: EmotionState;
   mistake?: ExecutionMistake;
+  marketCondition?: MarketCondition;
   notes?: string;
   dataQuality?: DataQualityTag;
 }
@@ -718,6 +720,7 @@ export interface UpdateTradeInput {
   entryChecklist?: Record<string, boolean>;
   emotion?: EmotionState;
   mistake?: ExecutionMistake;
+  marketCondition?: MarketCondition;
   notes?: string;
   dataQuality?: DataQualityTag;
 }
@@ -729,8 +732,10 @@ export interface CloseTradeInput {
   commission?: number; // >= 0
   swap?: number; // signed float
   otherFees?: number; // >= 0
+  setupTags?: string[];
   emotion?: EmotionState;
   mistake?: ExecutionMistake;
+  marketCondition?: MarketCondition;
   notes?: string;
   dataQuality?: DataQualityTag;
 }
@@ -928,6 +933,7 @@ export async function createTrade(
         entryChecklist: input.entryChecklist || {},
         emotion: input.emotion || "NEUTRAL",
         mistake: input.mistake || "NONE",
+        ...(input.marketCondition ? { marketCondition: input.marketCondition } : {}),
         notes: input.notes,
         attachments: [],
         dataQuality,
@@ -1138,6 +1144,11 @@ export async function updateTrade(
         entryChecklist: input.entryChecklist || existing.entryChecklist,
         emotion: input.emotion || existing.emotion,
         mistake: input.mistake || existing.mistake,
+        ...(input.marketCondition !== undefined
+          ? { marketCondition: input.marketCondition }
+          : existing.marketCondition
+          ? { marketCondition: existing.marketCondition }
+          : {}),
         notes: input.notes !== undefined ? input.notes : existing.notes,
         updatedAt: new Date().toISOString(),
       };
@@ -1263,6 +1274,11 @@ export async function closeTrade(
         outcome,
         emotion: input.emotion || existing.emotion,
         mistake: input.mistake || existing.mistake,
+        ...(input.marketCondition !== undefined
+          ? { marketCondition: input.marketCondition }
+          : existing.marketCondition
+          ? { marketCondition: existing.marketCondition }
+          : {}),
         notes: input.notes !== undefined ? input.notes : existing.notes,
         dataQuality:
           input.dataQuality === "ESTIMATED_INCOMPLETE_FEES"

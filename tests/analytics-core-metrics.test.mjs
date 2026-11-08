@@ -386,13 +386,28 @@ describe("PAE Task 3.2 & 3.2.1 — Core Metrics Engine Suite", () => {
     assert.equal(pf.calculationStatus, "VALID");
   });
 
-  test("17. Strict ISO-8601 validation helper: Rejects informal date strings", () => {
+  test("17. Strict ISO-8601 validation helper: Rejects informal date strings and non-existent calendar dates", () => {
+    // Valid ISO-8601 timestamps and calendar dates
     assert.equal(isValidIsoDate("2026-11-01T12:00:00.000Z"), true);
     assert.equal(isValidIsoDate("2026-11-01T12:00:00Z"), true);
     assert.equal(isValidIsoDate("2026-11-01"), true);
     assert.equal(isValidIsoDate("2026-11-01T12:00:00+07:00"), true);
+    assert.equal(isValidIsoDate("2024-02-29"), true, "2024 is a valid leap year");
+    assert.equal(isValidIsoDate("2000-02-29"), true, "2000 is a valid 400-year leap year");
 
-    // Rejection of invalid or informal formats
+    // Rejection of invalid calendar dates (non-existent days/months)
+    assert.equal(isValidIsoDate("2026-02-30"), false, "February 30 does not exist");
+    assert.equal(isValidIsoDate("2026-02-31"), false, "February 31 does not exist");
+    assert.equal(isValidIsoDate("2026-13-01"), false, "Month 13 does not exist");
+    assert.equal(isValidIsoDate("2026-04-31"), false, "April 31 does not exist (April has 30 days)");
+    assert.equal(isValidIsoDate("2026-02-29"), false, "2026 is not a leap year");
+    assert.equal(isValidIsoDate("1900-02-29"), false, "1900 is not a leap year (divisible by 100 but not 400)");
+    assert.equal(isValidIsoDate("2026-00-15"), false, "Month 0 does not exist");
+    assert.equal(isValidIsoDate("2026-05-00"), false, "Day 0 does not exist");
+    assert.equal(isValidIsoDate("2026-05-32"), false, "Day 32 does not exist");
+    assert.equal(isValidIsoDate("2026-11-08T24:00:00Z"), false, "Hour 24 is out of range");
+
+    // Rejection of informal and malformed strings
     assert.equal(isValidIsoDate("11/01/2026"), false);
     assert.equal(isValidIsoDate("November 1, 2026"), false);
     assert.equal(isValidIsoDate("invalid-date-string"), false);
@@ -407,7 +422,7 @@ describe("PAE Task 3.2 & 3.2.1 — Core Metrics Engine Suite", () => {
       createMockTrade({ status: "CLOSED", netPnl: 100 }), // Eligible
       createMockTrade({ status: "OPEN" }), // INVALID_STATUS
       createMockTrade({ status: "CANCELLED" }), // INVALID_STATUS
-      createMockTrade({ status: "CLOSED", exitDate: "not-iso-date" }), // INVALID_EXIT_DATE
+      createMockTrade({ status: "CLOSED", exitDate: "2026-02-30" }), // INVALID_EXIT_DATE (invalid calendar date)
       createMockTrade({ status: "CLOSED", netPnl: NaN }), // INVALID_NET_PNL
       createMockTrade({ status: "CLOSED", netPnl: 50, currency: "EUR" }), // UNSUPPORTED_CURRENCY
       null, // CORRUPT_RECORD
@@ -428,7 +443,7 @@ describe("PAE Task 3.2 & 3.2.1 — Core Metrics Engine Suite", () => {
 
     const reasonsMap = Object.fromEntries(diag.excludedReasons.map((r) => [r.reason, r.count]));
     assert.equal(reasonsMap.INVALID_STATUS, 2, "OPEN and CANCELLED");
-    assert.equal(reasonsMap.INVALID_EXIT_DATE, 1);
+    assert.equal(reasonsMap.INVALID_EXIT_DATE, 1, "Calendar-invalid date 2026-02-30 rejected");
     assert.equal(reasonsMap.INVALID_NET_PNL, 1);
     assert.equal(reasonsMap.UNSUPPORTED_CURRENCY, 1);
     assert.equal(reasonsMap.CORRUPT_RECORD, 2);
@@ -442,5 +457,107 @@ describe("PAE Task 3.2 & 3.2.1 — Core Metrics Engine Suite", () => {
       assert.equal("pair" in r, false);
       assert.equal("netPnl" in r, false);
     }
+  });
+
+  test("19. Expectancy: Boundary cohorts (only wins, only losses, only breakeven, and presentation rounding divergence)", () => {
+    // A. Only winning trades (N_l = 0, AvgLoss is undefined)
+    const onlyWins = [
+      createMockTrade({ netPnl: 150 }),
+      createMockTrade({ netPnl: 250 }),
+    ];
+    const expWins = calculateExpectancy(onlyWins, 2);
+    assert.equal(expWins.exactRationalReconciled, true);
+    assert.equal(expWins.expectancyFormula1, 200.0);
+    assert.equal(expWins.expectancyFormula2, 200.0);
+
+    // B. Only losing trades (N_w = 0, AvgWin is undefined)
+    const onlyLosses = [
+      createMockTrade({ netPnl: -100 }),
+      createMockTrade({ netPnl: -200 }),
+    ];
+    const expLosses = calculateExpectancy(onlyLosses, 2);
+    assert.equal(expLosses.exactRationalReconciled, true);
+    assert.equal(expLosses.expectancyFormula1, -150.0);
+    assert.equal(expLosses.expectancyFormula2, -150.0);
+
+    // C. Only breakeven trades (N_w = 0, N_l = 0, N_be = 3)
+    const onlyBe = [
+      createMockTrade({ netPnl: 0 }),
+      createMockTrade({ netPnl: 0 }),
+      createMockTrade({ netPnl: 0 }),
+    ];
+    const expBe = calculateExpectancy(onlyBe, 2);
+    assert.equal(expBe.exactRationalReconciled, true);
+    assert.equal(expBe.expectancyFormula1, 0.0);
+    assert.equal(expBe.expectancyFormula2, 0.0);
+
+    // D. Breakeven trades diluting the denominator
+    // 1 win ($100), 1 loss ($-50), 8 breakevens ($0) -> Total = 10 trades
+    // Net PnL = 50. Method 1: 50 / 10 = 5.00
+    // Method 2: Pw = 1/10 = 0.1, Pl = 1/10 = 0.1. AvgWin = 100, AvgLoss = 50 -> 0.1 * 100 - 0.1 * 50 = 5.00
+    const beDilution = [
+      createMockTrade({ netPnl: 100 }),
+      createMockTrade({ netPnl: -50 }),
+      ...Array.from({ length: 8 }, () => createMockTrade({ netPnl: 0 })),
+    ];
+    const expDilution = calculateExpectancy(beDilution, 2);
+    assert.equal(expDilution.totalClosedTrades, 10);
+    assert.equal(expDilution.exactRationalReconciled, true);
+    assert.equal(expDilution.expectancyFormula1, 5.0);
+    assert.equal(expDilution.expectancyFormula2, 5.0);
+
+    // E. Presentation rounding divergence with exact rational parity
+    // 3 wins of $10, 3 losses of -$3.33, 1 breakeven -> Total = 7 trades
+    // Total Net P/L = 30 - 9.99 = 20.01
+    // Method 1 raw: 20.01 / 7 = 2.85857... -> rounded to 2 decimals = 2.86
+    // Method 2 raw components:
+    // AvgWin = 10.0, Pw = 3/7 = 0.428571...
+    // AvgLoss = 3.33, Pl = 3/7 = 0.428571...
+    // Pw * AvgWin - Pl * AvgLoss = 0.428571 * 10 - 0.428571 * 3.33 = 4.28571 - 1.42714 = 2.85857...
+    const nonDivisible = [
+      createMockTrade({ netPnl: 10 }),
+      createMockTrade({ netPnl: 10 }),
+      createMockTrade({ netPnl: 10 }),
+      createMockTrade({ netPnl: -3.33 }),
+      createMockTrade({ netPnl: -3.33 }),
+      createMockTrade({ netPnl: -3.33 }),
+      createMockTrade({ netPnl: 0 }),
+    ];
+    const expNonDiv = calculateExpectancy(nonDivisible, 2);
+    assert.equal(expNonDiv.exactRationalReconciled, true, "BigInt cross-multiplication parity holds regardless of float presentation");
+  });
+
+  test("20. Profit Factor: Extreme ratio safety, overflow protection, and strict non-Infinity/non-NaN guarantees", () => {
+    // A. Extreme ratio where scaledQuotient > Number.MAX_SAFE_INTEGER
+    // Profit = 2 trades of $50 Trillion (aggregate = $100 Trillion = 10^16 minor units > Number.MAX_SAFE_INTEGER)
+    // Loss = $0.01 (1 minor unit)
+    // scaledQuotient = (10^16 * 10,000) / 1 = 10^20 > Number.MAX_SAFE_INTEGER (9 * 10^15)
+    const profit1 = createMockTrade({ netPnl: 50000000000000 });
+    const profit2 = createMockTrade({ netPnl: 50000000000000 });
+    const microLoss = createMockTrade({ netPnl: -0.01 });
+
+    const pfExtreme = calculateProfitFactor([profit1, profit2, microLoss], 2);
+    assert.equal(Number.isFinite(pfExtreme.profitFactor), true, "Profit factor must be finite");
+    assert.equal(isNaN(pfExtreme.profitFactor), false, "Profit factor must not be NaN");
+    assert.notEqual(pfExtreme.profitFactor, Infinity, "Profit factor must never be Infinity");
+    assert.equal(pfExtreme.calculationStatus, "VALID");
+
+    // B. Zero-Loss status & non-Infinity guarantee
+    const zeroLossCohort = [createMockTrade({ netPnl: 500 }), createMockTrade({ netPnl: 200 })];
+    const pfZeroLoss = calculateProfitFactor(zeroLossCohort, 2);
+    assert.equal(pfZeroLoss.profitFactor, null, "Zero losses must output null");
+    assert.equal(pfZeroLoss.calculationStatus, "ZERO_LOSSES");
+
+    // C. Zero-Profit status
+    const zeroProfitCohort = [createMockTrade({ netPnl: -100 }), createMockTrade({ netPnl: -200 })];
+    const pfZeroProfit = calculateProfitFactor(zeroProfitCohort, 2);
+    assert.equal(pfZeroProfit.profitFactor, 0.0);
+    assert.equal(pfZeroProfit.calculationStatus, "ZERO_PROFIT");
+
+    // D. All-Breakeven status
+    const allBeCohort = [createMockTrade({ netPnl: 0 }), createMockTrade({ netPnl: 0 })];
+    const pfAllBe = calculateProfitFactor(allBeCohort, 2);
+    assert.equal(pfAllBe.profitFactor, null);
+    assert.equal(pfAllBe.calculationStatus, "ALL_BREAKEVEN");
   });
 });

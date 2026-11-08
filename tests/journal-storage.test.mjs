@@ -126,6 +126,10 @@ describe("Signal Casper Academy - Journal Storage & Concurrency Architecture Sui
         const tPath = getUserTombstonePath(u);
         if (fs.existsSync(tPath)) fs.unlinkSync(tPath);
       } catch {}
+      try {
+        const rPath = getUserRecoveryRequiredPath(u);
+        if (fs.existsSync(rPath)) fs.unlinkSync(rPath);
+      } catch {}
 
       // Clean backups
       if (fs.existsSync(backupsDir)) {
@@ -143,6 +147,9 @@ describe("Signal Casper Academy - Journal Storage & Concurrency Architecture Sui
         } catch {}
       }
     }
+    try {
+      rebuildJournalIndex();
+    } catch {}
   });
 
   test("1. Creation & Schema Initialization: Fresh Partition", () => {
@@ -498,8 +505,12 @@ describe("Signal Casper Academy - Journal Storage & Concurrency Architecture Sui
   });
 
   test("13. Stale Temp Files: Purges Dangling .tmp.* Files", async () => {
+    // Isolate test temp directory to avoid sweeping shared journals directory during concurrent test runs
+    const isolatedTempDir = path.join(journalsDir, ".test_stale_cleanup");
+    fs.mkdirSync(isolatedTempDir, { recursive: true });
+
     const fakeTemp = path.join(
-      journalsDir,
+      isolatedTempDir,
       `u_dummy.tmp.${process.pid}.${Date.now()}.json`
     );
     fs.writeFileSync(fakeTemp, "{}", "utf8");
@@ -507,10 +518,14 @@ describe("Signal Casper Academy - Journal Storage & Concurrency Architecture Sui
 
     await new Promise((r) => setTimeout(r, 10));
 
-    // Cleanup with 0 maxAge to immediately purge
-    const cleaned = cleanupStaleTempFiles(0);
+    // Cleanup with 0 maxAge targeting isolated directory
+    const cleaned = cleanupStaleTempFiles(0, [isolatedTempDir]);
     assert.ok(cleaned >= 1);
     assert.ok(!fs.existsSync(fakeTemp));
+
+    try {
+      fs.rmSync(isolatedTempDir, { recursive: true, force: true });
+    } catch {}
   });
 
   test("14. Derived Index Rebuild: Regenerates index.json from SSOT Partitions", () => {
@@ -800,8 +815,9 @@ describe("Signal Casper Academy - Journal Storage & Concurrency Architecture Sui
 
     await new Promise((r) => setTimeout(r, 10));
 
-    // Stale temp cleanup should purge the partial file
-    const cleaned = cleanupStaleTempFiles(0);
+    // Stale temp cleanup should purge the partial file targeting user's specific tombstone prefix
+    const tombstonePrefix = `u_${userCrashTomb}.tombstone.tmp.`;
+    const cleaned = cleanupStaleTempFiles(0, [journalsDir], tombstonePrefix);
     assert.ok(cleaned >= 1);
     assert.strictEqual(fs.existsSync(partialTempPath), false);
 
@@ -835,9 +851,10 @@ describe("Signal Casper Academy - Journal Storage & Concurrency Architecture Sui
     const readPartition = readUserPartition(userCrashBackup, { bypassCache: true });
     assert.strictEqual(readPartition.version, 2);
 
-    // Cleanup purges the dangling backup tempfile
+    // Cleanup purges the dangling backup tempfile targeting user's specific backup prefix
     await new Promise((r) => setTimeout(r, 10));
-    cleanupStaleTempFiles(0);
+    const backupPrefix = `.u_${userCrashBackup}.backup.tmp.`;
+    cleanupStaleTempFiles(0, [backupsDir], backupPrefix);
     assert.strictEqual(fs.existsSync(danglingBackupTmp), false);
   });
 });

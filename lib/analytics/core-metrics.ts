@@ -13,7 +13,12 @@
  */
 
 import type { TradeRecord } from "../journal-types";
-import { toMinorUnits, toMajorUnits, roundToDecimals } from "../journal-service";
+import {
+  toMinorUnits,
+  toMajorUnits,
+  roundToDecimals,
+  getMaxSafeFinancialAmount,
+} from "../journal-service";
 import type {
   WinRateResult,
   AvgWinLossResult,
@@ -34,10 +39,41 @@ const ISO_8601_REGEX =
 
 /**
  * Validates whether a given timestamp conforms to strict ISO-8601 format and represents a real calendar date.
+ * Rejects non-existent calendar dates (e.g., Feb 30, April 31, Month 13) without JavaScript Date rollover bugs.
  */
 export function isValidIsoDate(str: unknown): boolean {
   if (typeof str !== "string" || str.trim().length === 0) return false;
   if (!ISO_8601_REGEX.test(str)) return false;
+
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!match) return false;
+
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const day = parseInt(match[3], 10);
+
+  if (month < 1 || month > 12) return false;
+
+  let maxDays = 31;
+  if (month === 2) {
+    const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    maxDays = isLeap ? 29 : 28;
+  } else if (month === 4 || month === 6 || month === 9 || month === 11) {
+    maxDays = 30;
+  }
+
+  if (day < 1 || day > maxDays) return false;
+
+  if (match[4] !== undefined && match[5] !== undefined) {
+    const hour = parseInt(match[4], 10);
+    const minute = parseInt(match[5], 10);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return false;
+    if (match[6] !== undefined) {
+      const second = parseInt(match[6], 10);
+      if (second < 0 || second > 59) return false;
+    }
+  }
+
   const time = new Date(str).getTime();
   return !isNaN(time);
 }
@@ -359,13 +395,17 @@ const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
  * Number.MAX_SAFE_INTEGER, ensuring no exception crashes metric calculation.
  */
 function safeMinorToMajor(minor: bigint, decimals: number): number {
-  if (minor <= MAX_SAFE_INTEGER_BIGINT) {
+  const absMinor = minor < BigInt(0) ? -minor : minor;
+  if (absMinor <= MAX_SAFE_INTEGER_BIGINT) {
     return toMajorUnits(minor, decimals);
   }
+  const sign = minor < BigInt(0) ? -1 : 1;
   const factor = BigInt(10) ** BigInt(decimals);
-  const intPart = minor / factor;
-  const fracPart = (minor % factor).toString().padStart(decimals, "0");
-  return Number(intPart.toString() + "." + fracPart);
+  const intPart = absMinor / factor;
+  const fracPart = decimals > 0 ? (absMinor % factor).toString().padStart(decimals, "0") : "";
+  const str = decimals > 0 ? `${intPart.toString()}.${fracPart}` : intPart.toString();
+  const val = sign * Number(str);
+  return Number.isFinite(val) ? val : (sign * Number.MAX_SAFE_INTEGER);
 }
 
 /**
@@ -433,7 +473,21 @@ export function calculateProfitFactor(
   const SCALE = BigInt(10000);
   const halfDivisor = grossLossMinor / BigInt(2);
   const scaledQuotient = (grossProfitMinor * SCALE + halfDivisor) / grossLossMinor;
-  const pfRaw = Number(scaledQuotient) / 10000;
+
+  // Safe Number conversion with explicit boundary and overflow protection:
+  const maxSafeRatio = getMaxSafeFinancialAmount(2);
+  let pfRaw: number;
+  if (scaledQuotient > MAX_SAFE_INTEGER_BIGINT) {
+    const converted = Number(scaledQuotient) / 10000;
+    pfRaw = Number.isFinite(converted) ? converted : maxSafeRatio;
+  } else {
+    pfRaw = Number(scaledQuotient) / 10000;
+  }
+
+  if (!Number.isFinite(pfRaw) || isNaN(pfRaw) || pfRaw >= maxSafeRatio) {
+    pfRaw = maxSafeRatio;
+  }
+
   const profitFactor = roundToDecimals(pfRaw, 2);
 
   return {
@@ -538,9 +592,16 @@ export function calculateExpectancy(
     const den2 = BigInt(total) * BigInt(lossCount);
     exactRationalReconciled = num1 * den2 === num2 * den1;
   } else {
-    const countProduct = BigInt(winCount) * BigInt(lossCount);
-    const num2 = countProduct * totalNetPnlMinor;
-    const den2 = BigInt(total) * countProduct;
+    // Method 2 Component Model rational subtraction without preliminary algebraic cancellation:
+    // Term_W = (winCount * winSumMinor) / (total * winCount)
+    // Term_L = (lossCount * lossAbsSumMinor) / (total * lossCount)
+    // Subtracting fractions: a/b - c/d = (a * d - c * b) / (b * d)
+    const winTermNum = BigInt(winCount) * winSumMinor;
+    const winTermDen = BigInt(total) * BigInt(winCount);
+    const lossTermNum = BigInt(lossCount) * lossAbsSumMinor;
+    const lossTermDen = BigInt(total) * BigInt(lossCount);
+    const num2 = winTermNum * lossTermDen - lossTermNum * winTermDen;
+    const den2 = winTermDen * lossTermDen;
     exactRationalReconciled = num1 * den2 === num2 * den1;
   }
 
