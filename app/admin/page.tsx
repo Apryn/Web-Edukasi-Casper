@@ -5,6 +5,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CourseEditorWorkspace from "./CourseEditorWorkspace";
+import AdminEducationIntelligencePanel from "./AdminEducationIntelligencePanel";
 import type { Course, CoursePublicationStatus } from "@/lib/types";
 import type { AdminStudentIntelligenceReport } from "@/lib/admin-student-intelligence";
 import {
@@ -81,7 +82,7 @@ export default function AdminPage() {
   } | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "stats" | "courses" | "users" | "quizzes" | "intelligence"
+    "stats" | "courses" | "users" | "quizzes" | "intelligence" | "education"
   >("courses");
 
   // Admin Data
@@ -573,6 +574,15 @@ export default function AdminPage() {
             Riwayat Evaluasi Kuis ({submissions.length})
           </button>
           <button
+            className={`admin-tab ${activeTab === "education" ? "active" : ""}`}
+            onClick={() => {
+              setEditingCourseId(null);
+              setActiveTab("education");
+            }}
+          >
+            Education Intelligence &amp; Retensi Belajar
+          </button>
+          <button
             className={`admin-tab ${activeTab === "intelligence" ? "active" : ""}`}
             onClick={() => {
               setEditingCourseId(null);
@@ -582,6 +592,9 @@ export default function AdminPage() {
             Student Intelligence &amp; Jurnal Kohort
           </button>
         </div>
+
+        {/* TAB: Education Intelligence & Adaptive Learning Analytics (Sprint 4) */}
+        {activeTab === "education" && <AdminEducationIntelligencePanel />}
 
         {/* TAB 1: Stats, System Health & Audit Logs */}
         {activeTab === "stats" && (

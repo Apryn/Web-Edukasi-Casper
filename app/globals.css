@@ -645,3 +645,27 @@ h1,h2,h3,p{margin-top:0}.hero h1{font:600 clamp(42px,5.2vw,67px)/1.08 'Manrope',
   .journal-topbar{padding:12px 14px}
   .dashboard-mode-tab{width:100%;justify-content:center}
 }
+
+/* ── SPRINT 4: STUDENT LEARNING INTELLIGENCE & ADAPTIVE LEARNING ─── */
+.learning-workspace{display:flex;flex-direction:column;gap:22px;min-width:0}
+.learning-kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.learning-continue-banner{background:linear-gradient(135deg,#0d1b28 0%,#08111a 100%);border:1px solid #214059;border-left:4px solid var(--cyan);padding:20px 24px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.learning-rec-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.learning-two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;min-width:0}
+.learning-category-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+
+@media (max-width: 1120px) {
+  .learning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .learning-category-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media (max-width: 900px) {
+  .learning-rec-grid,.learning-two-col{grid-template-columns:1fr}
+  .learning-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media (max-width: 640px) {
+  .learning-kpi-grid,.learning-category-strip{grid-template-columns:1fr}
+  .learning-continue-banner{padding:16px 14px;flex-direction:column;align-items:stretch}
+  .learning-weekly-bars{overflow-x:auto;padding-bottom:6px}
+}

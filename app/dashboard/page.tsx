@@ -30,13 +30,14 @@ import {
   BarChart3,
 } from "lucide-react";
 import StudentJournalWorkspace from "./StudentJournalWorkspace";
+import StudentLearningWorkspace from "./StudentLearningWorkspace";
 
 export default function DashboardPage() {
   const [allCourses, setAllCourses] = useState<Course[]>(() => getStaticCourses());
   const [progressMap, setProgressMap] = useState<Record<string, UserCourseProgress>>({});
   const [currentUser, setCurrentUser] = useState<{ id?: string; name?: string; email?: string; role?: string } | null>(null);
   const [selectedCertCourse, setSelectedCertCourse] = useState<Course | null>(null);
-  const [dashboardMode, setDashboardMode] = useState<"learning" | "journal">("journal");
+  const [dashboardMode, setDashboardMode] = useState<"learning" | "journal">("learning");
 
   useEffect(() => {
     // 1. Load initial local progress for active session user (if any)
@@ -210,22 +211,22 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* Portal Mode Switcher: Trading Journal & Analytics vs Academic Curriculum */}
+      {/* Portal Mode Switcher: Learning Intelligence vs Trading Journal & Analytics */}
       <section className="wrap dashboard-mode-bar">
         <div className="dashboard-mode-tabs">
+          <button
+            type="button"
+            className={`dashboard-mode-tab ${dashboardMode === "learning" ? "active" : ""}`}
+            onClick={() => setDashboardMode("learning")}
+          >
+            <GraduationCap size={16} /> Learning Intelligence &amp; Kurikulum ({enrolledCourses.length})
+          </button>
           <button
             type="button"
             className={`dashboard-mode-tab ${dashboardMode === "journal" ? "active" : ""}`}
             onClick={() => setDashboardMode("journal")}
           >
             <BarChart3 size={16} /> Trading Journal &amp; Performance Analytics
-          </button>
-          <button
-            type="button"
-            className={`dashboard-mode-tab ${dashboardMode === "learning" ? "active" : ""}`}
-            onClick={() => setDashboardMode("learning")}
-          >
-            <GraduationCap size={16} /> Kurikulum Akademi &amp; Sertifikat ({enrolledCourses.length})
           </button>
         </div>
       </section>
@@ -249,8 +250,18 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* Metrics Row */}
+      {/* Learning Intelligence & Adaptive Curriculum Workspace */}
       {dashboardMode === "learning" && (
+      <>
+      {currentUser?.id ? (
+        <section className="wrap journal-outer-section">
+          <StudentLearningWorkspace
+            currentUser={currentUser}
+            allCourses={allCourses}
+            onOpenCertificate={(c) => setSelectedCertCourse(c)}
+          />
+        </section>
+      ) : (
       <>
       <section className="dashboard-metrics wrap">
         <div className="metric-card">
@@ -427,6 +438,8 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
+      </>
+      )}
       </>
       )}
 

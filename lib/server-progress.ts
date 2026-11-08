@@ -4,8 +4,10 @@ import {
   getUserCourseProgress,
   upsertUserProgress,
   recordQuizSubmission,
+  recordLearningEvent,
   findUserById,
 } from "./db";
+import { evaluateCourseCompletion } from "./progress";
 import type { Lesson } from "./types";
 
 const SLUG_REGEX = /^[a-zA-Z0-9_-]{1,100}$/;
@@ -107,10 +109,12 @@ export function validateAndPersistUserProgress(
   }
 
   const lessonMap = new Map<string, Lesson>();
+  const moduleByLessonId = new Map<string, string>();
   for (const mod of course.modules) {
     if (mod && Array.isArray(mod.lessons)) {
       for (const lesson of mod.lessons) {
         lessonMap.set(lesson.id, lesson);
+        moduleByLessonId.set(lesson.id, mod.id);
       }
     }
   }
@@ -211,6 +215,15 @@ export function validateAndPersistUserProgress(
     }
   }
 
+  const evalState = evaluateCourseCompletion(course, {
+    completedLessonIds: deduplicatedCompletedIds,
+    quizScores: verifiedQuizScores,
+  });
+  const isFullyCompleted = evalState.isComplete && evalState.allQuizzesPassed;
+  const completedAt = isFullyCompleted
+    ? existingProgress?.completed_at || new Date().toISOString()
+    : null;
+
   // 6. Persist strictly bound to userId with server-verified quizScores
   upsertUserProgress({
     id: existingProgress ? existingProgress.id : crypto.randomUUID(),
@@ -219,7 +232,49 @@ export function validateAndPersistUserProgress(
     completedLessonIds: deduplicatedCompletedIds,
     quizScores: verifiedQuizScores,
     lastLessonId: cleanLastLessonId,
+    completedAt,
   });
+
+  // 7. Record minimal server-verified learning events (idempotent & deduplicated)
+  recordLearningEvent({
+    userId,
+    eventType: "COURSE_STARTED",
+    courseId: course.id,
+    courseSlug,
+  });
+
+  if (cleanLastLessonId) {
+    recordLearningEvent({
+      userId,
+      eventType: "LESSON_STARTED",
+      courseId: course.id,
+      courseSlug,
+      moduleId: moduleByLessonId.get(cleanLastLessonId) || null,
+      lessonId: cleanLastLessonId,
+    });
+  }
+
+  for (const lid of deduplicatedCompletedIds) {
+    if (!existingServerCompletedSet.has(lid)) {
+      recordLearningEvent({
+        userId,
+        eventType: "LESSON_COMPLETED",
+        courseId: course.id,
+        courseSlug,
+        moduleId: moduleByLessonId.get(lid) || null,
+        lessonId: lid,
+      });
+    }
+  }
+
+  if (isFullyCompleted) {
+    recordLearningEvent({
+      userId,
+      eventType: "COURSE_COMPLETED",
+      courseId: course.id,
+      courseSlug,
+    });
+  }
 
   return {
     ok: true,
@@ -326,10 +381,12 @@ export function evaluateAndRecordServerQuiz(
   }
 
   const validLessonIds = new Set<string>();
+  const moduleByLessonId = new Map<string, string>();
   let targetLesson: Lesson | null = null;
   for (const mod of course.modules) {
     for (const l of mod.lessons) {
       validLessonIds.add(l.id);
+      moduleByLessonId.set(l.id, mod.id);
       if (l.id === lessonId) {
         targetLesson = l;
       }
@@ -413,6 +470,8 @@ export function evaluateAndRecordServerQuiz(
 
   const isMandatoryQuizLesson = targetLesson.type === "quiz";
 
+  const wasPreviouslyCompleted = completedLessonIds.includes(lessonId);
+
   // Mandatory evaluation lessons (type === "quiz") require >= lessonPassingScore to be completed.
   // Practice quizzes on non-quiz lessons (reading/video/chart-study) must NEVER revoke lesson completion on failure (BUG-03).
   if (passed) {
@@ -429,6 +488,15 @@ export function evaluateAndRecordServerQuiz(
 
   completedLessonIds = Array.from(new Set(completedLessonIds));
 
+  const evalState = evaluateCourseCompletion(course, {
+    completedLessonIds,
+    quizScores: currentQuizScores,
+  });
+  const isFullyCompleted = evalState.isComplete && evalState.allQuizzesPassed;
+  const completedAt = isFullyCompleted
+    ? existingProgress?.completed_at || new Date().toISOString()
+    : null;
+
   upsertUserProgress({
     id: existingProgress ? existingProgress.id : crypto.randomUUID(),
     userId,
@@ -436,7 +504,45 @@ export function evaluateAndRecordServerQuiz(
     completedLessonIds,
     quizScores: currentQuizScores,
     lastLessonId: lessonId,
+    completedAt,
   });
+
+  recordLearningEvent({
+    userId,
+    eventType: "COURSE_STARTED",
+    courseId: course.id,
+    courseSlug,
+  });
+
+  recordLearningEvent({
+    userId,
+    eventType: "QUIZ_SUBMITTED",
+    courseId: course.id,
+    courseSlug,
+    moduleId: moduleByLessonId.get(lessonId) || null,
+    lessonId,
+    score,
+  });
+
+  if (passed && !wasPreviouslyCompleted && completedLessonIds.includes(lessonId)) {
+    recordLearningEvent({
+      userId,
+      eventType: "LESSON_COMPLETED",
+      courseId: course.id,
+      courseSlug,
+      moduleId: moduleByLessonId.get(lessonId) || null,
+      lessonId,
+    });
+  }
+
+  if (isFullyCompleted) {
+    recordLearningEvent({
+      userId,
+      eventType: "COURSE_COMPLETED",
+      courseId: course.id,
+      courseSlug,
+    });
+  }
 
   return {
     ok: true,

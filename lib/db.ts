@@ -22,6 +22,8 @@ export interface DbCourseProgress {
   completed_lesson_ids: string; // JSON string "[]"
   quiz_scores: string; // JSON string "{}"
   last_lesson_id: string | null;
+  started_at?: string;
+  completed_at?: string | null;
   updated_at: string;
 }
 
@@ -46,12 +48,42 @@ export interface DbAdminAuditLog {
   created_at: string;
 }
 
+export type LearningEventType =
+  | "COURSE_STARTED"
+  | "LESSON_STARTED"
+  | "LESSON_COMPLETED"
+  | "QUIZ_SUBMITTED"
+  | "COURSE_COMPLETED";
+
+export interface DbLearningEvent {
+  id: string;
+  user_id: string;
+  event_type: LearningEventType;
+  course_id: string;
+  course_slug: string;
+  module_id: string | null;
+  lesson_id: string | null;
+  score: number | null;
+  created_at: string;
+  schema_version: 1;
+}
+
+export interface DbRecommendationDismissal {
+  id: string;
+  user_id: string;
+  recommendation_id: string;
+  evidence_signature: string;
+  dismissed_at: string;
+}
+
 export interface DatabaseSchema {
   users: DbUser[];
   course_progress: DbCourseProgress[];
   quiz_submissions: DbQuizSubmission[];
   custom_courses?: Record<string, unknown>[];
   admin_audit_logs?: DbAdminAuditLog[];
+  learning_events?: DbLearningEvent[];
+  recommendation_dismissals?: DbRecommendationDismissal[];
 }
 
 export interface DatabaseHealth {
@@ -497,6 +529,7 @@ export function upsertUserProgress(data: {
   completedLessonIds: string[];
   quizScores: Record<string, number>;
   lastLessonId?: string;
+  completedAt?: string | null;
 }): void {
   executeMutation((db) => {
     const now = new Date().toISOString();
@@ -504,13 +537,20 @@ export function upsertUserProgress(data: {
       (p) => p.user_id === data.userId && p.course_slug === data.courseSlug
     );
 
+    const existing = index >= 0 ? db.course_progress[index] : null;
     const entry: DbCourseProgress = {
-      id: index >= 0 ? db.course_progress[index].id : data.id,
+      id: existing ? existing.id : data.id,
       user_id: data.userId,
       course_slug: data.courseSlug,
       completed_lesson_ids: JSON.stringify(data.completedLessonIds || []),
       quiz_scores: JSON.stringify(data.quizScores || {}),
       last_lesson_id: data.lastLessonId || null,
+      ...(existing?.started_at ? { started_at: existing.started_at } : { started_at: now }),
+      ...(data.completedAt !== undefined
+        ? { completed_at: data.completedAt }
+        : existing?.completed_at !== undefined
+          ? { completed_at: existing.completed_at }
+          : {}),
       updated_at: now,
     };
 
@@ -1069,6 +1109,14 @@ export function deleteUserById(
     db.users = db.users.filter((u) => u.id !== userId);
     db.course_progress = db.course_progress.filter((p) => p.user_id !== userId);
     db.quiz_submissions = db.quiz_submissions.filter((s) => s.user_id !== userId);
+    if (Array.isArray(db.learning_events)) {
+      db.learning_events = db.learning_events.filter((e) => e.user_id !== userId);
+    }
+    if (Array.isArray(db.recommendation_dismissals)) {
+      db.recommendation_dismissals = db.recommendation_dismissals.filter(
+        (d) => d.user_id !== userId
+      );
+    }
 
     if (auditAdmin) {
       if (!Array.isArray(db.admin_audit_logs)) {
@@ -1089,6 +1137,204 @@ export function deleteUserById(
       }
     }
     return true;
+  });
+}
+
+// ── Sprint 4: Learning Events & Recommendation Dismissals ────────
+
+const MAX_LEARNING_EVENTS = 10000;
+const VALID_LEARNING_EVENT_TYPES = new Set<LearningEventType>([
+  "COURSE_STARTED",
+  "LESSON_STARTED",
+  "LESSON_COMPLETED",
+  "QUIZ_SUBMITTED",
+  "COURSE_COMPLETED",
+]);
+
+export function recordLearningEvent(input: {
+  userId: string;
+  eventType: LearningEventType;
+  courseId: string;
+  courseSlug: string;
+  moduleId?: string | null;
+  lessonId?: string | null;
+  score?: number | null;
+  createdAt?: string;
+}): DbLearningEvent | null {
+  const userId = String(input.userId || "").trim();
+  const courseId = String(input.courseId || "").trim();
+  const courseSlug = String(input.courseSlug || "").toLowerCase().trim();
+  const eventType = input.eventType;
+  if (!userId || !courseId || !courseSlug || !VALID_LEARNING_EVENT_TYPES.has(eventType)) {
+    return null;
+  }
+
+  return executeMutation((db) => {
+    if (!Array.isArray(db.learning_events)) {
+      db.learning_events = [];
+    }
+
+    const nowIso =
+      input.createdAt && !Number.isNaN(Date.parse(input.createdAt))
+        ? new Date(input.createdAt).toISOString()
+        : new Date().toISOString();
+    const nowMs = Date.parse(nowIso);
+    const utcDay = nowIso.slice(0, 10);
+    const lessonId = input.lessonId ? String(input.lessonId).trim() : null;
+    const moduleId = input.moduleId ? String(input.moduleId).trim() : null;
+    const score =
+      typeof input.score === "number" && Number.isFinite(input.score)
+        ? Math.max(0, Math.min(100, Math.round(input.score)))
+        : null;
+
+    // Idempotency & duplicate protection rules
+    if (eventType === "COURSE_STARTED" || eventType === "COURSE_COMPLETED") {
+      const existing = db.learning_events.find(
+        (e) =>
+          e.user_id === userId &&
+          e.course_slug === courseSlug &&
+          e.event_type === eventType
+      );
+      if (existing) return { ...existing };
+    } else if (eventType === "LESSON_STARTED") {
+      const existingSameDay = db.learning_events.find(
+        (e) =>
+          e.user_id === userId &&
+          e.course_slug === courseSlug &&
+          e.lesson_id === lessonId &&
+          e.event_type === "LESSON_STARTED" &&
+          typeof e.created_at === "string" &&
+          e.created_at.slice(0, 10) === utcDay
+      );
+      if (existingSameDay) return { ...existingSameDay };
+    } else if (eventType === "LESSON_COMPLETED") {
+      const existingRecent = db.learning_events.find(
+        (e) =>
+          e.user_id === userId &&
+          e.course_slug === courseSlug &&
+          e.lesson_id === lessonId &&
+          e.event_type === "LESSON_COMPLETED" &&
+          Math.abs(nowMs - Date.parse(e.created_at)) < 60_000
+      );
+      if (existingRecent) return { ...existingRecent };
+    } else if (eventType === "QUIZ_SUBMITTED") {
+      const existingRecentQuiz = db.learning_events.find(
+        (e) =>
+          e.user_id === userId &&
+          e.course_slug === courseSlug &&
+          e.lesson_id === lessonId &&
+          e.event_type === "QUIZ_SUBMITTED" &&
+          e.score === score &&
+          Math.abs(nowMs - Date.parse(e.created_at)) < 2_000
+      );
+      if (existingRecentQuiz) return { ...existingRecentQuiz };
+    }
+
+    const entry: DbLearningEvent = {
+      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      user_id: userId,
+      event_type: eventType,
+      course_id: courseId,
+      course_slug: courseSlug,
+      module_id: moduleId,
+      lesson_id: lessonId,
+      score,
+      created_at: nowIso,
+      schema_version: 1,
+    };
+
+    db.learning_events.push(entry);
+    if (db.learning_events.length > MAX_LEARNING_EVENTS) {
+      db.learning_events = db.learning_events.slice(-MAX_LEARNING_EVENTS);
+    }
+
+    return { ...entry };
+  });
+}
+
+export function getLearningEventsForUser(userId: string): DbLearningEvent[] {
+  const db = loadDatabase();
+  if (!Array.isArray(db.learning_events)) return [];
+  return db.learning_events
+    .filter((e) => e.user_id === userId)
+    .map((e) => ({ ...e }));
+}
+
+export function getAllLearningEventsForAdmin(): DbLearningEvent[] {
+  const db = loadDatabase();
+  if (!Array.isArray(db.learning_events)) return [];
+  return structuredClone(db.learning_events);
+}
+
+export function getAllCourseProgressForAdmin(): DbCourseProgress[] {
+  const db = loadDatabase();
+  return structuredClone(db.course_progress);
+}
+
+export function getRecommendationDismissalsForUser(
+  userId: string
+): DbRecommendationDismissal[] {
+  const db = loadDatabase();
+  if (!Array.isArray(db.recommendation_dismissals)) return [];
+  return db.recommendation_dismissals
+    .filter((d) => d.user_id === userId)
+    .map((d) => ({ ...d }));
+}
+
+export function dismissRecommendationForUser(input: {
+  userId: string;
+  recommendationId: string;
+  evidenceSignature: string;
+}): DbRecommendationDismissal {
+  const userId = String(input.userId || "").trim();
+  const recommendationId = String(input.recommendationId || "").trim();
+  const evidenceSignature = String(input.evidenceSignature || "").trim();
+  if (!userId || !recommendationId) {
+    throw new Error("userId dan recommendationId wajib diisi.");
+  }
+
+  return executeMutation((db) => {
+    if (!Array.isArray(db.recommendation_dismissals)) {
+      db.recommendation_dismissals = [];
+    }
+    const now = new Date().toISOString();
+    const existingIdx = db.recommendation_dismissals.findIndex(
+      (d) => d.user_id === userId && d.recommendation_id === recommendationId
+    );
+    const entry: DbRecommendationDismissal = {
+      id:
+        existingIdx >= 0
+          ? db.recommendation_dismissals[existingIdx].id
+          : `rd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      user_id: userId,
+      recommendation_id: recommendationId,
+      evidence_signature: evidenceSignature,
+      dismissed_at: now,
+    };
+    if (existingIdx >= 0) {
+      db.recommendation_dismissals[existingIdx] = entry;
+    } else {
+      db.recommendation_dismissals.push(entry);
+    }
+    return { ...entry };
+  });
+}
+
+export function restoreRecommendationForUser(
+  userId: string,
+  recommendationId?: string
+): number {
+  const safeUserId = String(userId || "").trim();
+  if (!safeUserId) return 0;
+  return executeMutation((db) => {
+    if (!Array.isArray(db.recommendation_dismissals)) return 0;
+    const before = db.recommendation_dismissals.length;
+    db.recommendation_dismissals = db.recommendation_dismissals.filter((d) => {
+      if (d.user_id !== safeUserId) return true;
+      if (recommendationId && d.recommendation_id !== recommendationId) return true;
+      return false;
+    });
+    return before - db.recommendation_dismissals.length;
   });
 }
 

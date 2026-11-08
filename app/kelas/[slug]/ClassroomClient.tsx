@@ -477,12 +477,23 @@ function ClassroomInner({ course }: { course: Course }) {
     };
   }, [course.slug, lessonIdFromParam, allLessons]);
 
-  // Reset quiz state when switching lessons
+  // Reset quiz state and record LESSON_STARTED activity when switching lessons
   useEffect(() => {
     setSelectedAnswers({});
     setQuizEvaluation(null);
     setQuizError(null);
-  }, [currentLessonId]);
+    if (course.slug && currentLessonId) {
+      fetch("/api/learning/activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventType: "LESSON_STARTED",
+          courseSlug: course.slug,
+          lessonId: currentLessonId,
+        }),
+      }).catch(() => {});
+    }
+  }, [course.slug, currentLessonId]);
 
   const currentIndex = allLessons.findIndex((item) => item.lesson.id === currentLessonId);
   const currentItem = allLessons[currentIndex] || allLessons[0];
