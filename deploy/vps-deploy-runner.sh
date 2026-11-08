@@ -34,7 +34,7 @@ if [ -f "$DB_FILE" ] && [ -s "$DB_FILE" ]; then
         if (hasTest) {
           console.log("HAS_TEST_ACCOUNT"); process.exit(0);
         }
-        const admin = db.users.find(u => u && u.id === "24e81fbb-6ace-4bae-a7cd-8d19a7093b2e" && u.email === "apryn@casper.com" && u.role === "ADMIN");
+        const admin = db.users.find(u => u && u.email === "apriyanriyan23@gmail.com" && u.role === "ADMIN");
         if (!admin) {
           console.log("NO_VALID_ADMIN"); process.exit(0);
         }

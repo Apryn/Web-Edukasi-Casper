@@ -10,7 +10,6 @@ const FORBIDDEN_PRODUCTION_SECRETS = new Set([
 const COOKIE_NAME = "sc_auth_token";
 
 export const MASTER_ADMIN_EMAILS = new Set<string>([
-  "apryn@casper.com",
   "apriyanriyan23@gmail.com",
 ]);
 

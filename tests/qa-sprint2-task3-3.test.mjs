@@ -110,9 +110,9 @@ describe("Sprint 2 Task 3.3 — Deep Functional, Security & Data Integrity QA", 
   let pristineSnapshot = null;
 
   const adminUser = {
-    id: "24e81fbb-6ace-4bae-a7cd-8d19a7093b2e",
-    email: "apryn@casper.com",
-    name: "Apryn",
+    id: "6b9ba627-6741-4ee6-bf50-892469db05bf",
+    email: "apriyanriyan23@gmail.com",
+    name: "Ryan",
     role: "ADMIN",
   };
 

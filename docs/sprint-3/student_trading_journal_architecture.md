@@ -70,7 +70,7 @@ The **Student Trading Journal & Performance Tracking System** provides a secure,
    - All Journal APIs will follow standard RESTful methods (`GET`, `POST`, `PUT`, `DELETE`), return standardized JSON payloads `{ success: true, data: ... }` or `{ error: string }`, and enforce strict HTTP status codes (`401`, `403`, `404`, `409`, `410`, `413`, `422`, `429`, `500`, `503`).
 
 2. **Role Hierarchy & Privacy Boundary**:
-   - Roles currently defined: `USER` (Students), `MENTOR` (Instructors), `ADMIN` (Curriculum & System Managers), `MASTER_ADMIN` (`apryn@casper.com`, `apriyanriyan23@gmail.com`).
+   - Roles currently defined: `USER` (Students), `MENTOR` (Instructors), `ADMIN` (Curriculum & System Managers), `MASTER_ADMIN` (`apriyanriyan23@gmail.com`).
    - `auth.ts` provides `isAdmin(user)` and `isMentorOrAdmin(user)`.
    - **Crucial Architectural Principle**: Status as `ADMIN` or `MASTER_ADMIN` does **NOT** grant implicit rights to view private student journals. An independent permission gate (`StudentConsent`) must govern access.
 

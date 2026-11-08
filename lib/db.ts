@@ -976,10 +976,7 @@ export function updateUserRole(
       throw new Error("Pengguna tidak ditemukan.");
     }
     const targetEmail = user.email.toLowerCase().trim();
-    if (
-      (targetEmail === "apryn@casper.com" || targetEmail === "apriyanriyan23@gmail.com") &&
-      newRole !== "ADMIN"
-    ) {
+    if (targetEmail === "apriyanriyan23@gmail.com" && newRole !== "ADMIN") {
       throw new Error("Akun Master Admin utama tidak dapat diturunkan statusnya.");
     }
     const prevRole = user.role;
@@ -1018,7 +1015,7 @@ export function deleteUserById(
       throw new Error("Pengguna tidak ditemukan.");
     }
     const targetEmail = user.email.toLowerCase().trim();
-    if (targetEmail === "apryn@casper.com" || targetEmail === "apriyanriyan23@gmail.com") {
+    if (targetEmail === "apriyanriyan23@gmail.com") {
       throw new Error("Akun Master Admin utama dilarang keras dihapus.");
     }
 

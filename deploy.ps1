@@ -47,8 +47,8 @@ if (!Array.isArray(db.users) || db.users.length !== 1) {
   console.error('Jumlah pengguna harus tepat 1');
   process.exit(1);
 }
-if (db.users[0].email !== 'apryn@casper.com' || db.users[0].role !== 'ADMIN') {
-  console.error('User bukan admin apryn@casper.com');
+if (db.users[0].email !== 'apriyanriyan23@gmail.com' || db.users[0].role !== 'ADMIN') {
+  console.error('User bukan admin apriyanriyan23@gmail.com');
   process.exit(1);
 }
 console.log('Database lokal valid. User: ' + db.users[0].email + ' | Role: ' + db.users[0].role);

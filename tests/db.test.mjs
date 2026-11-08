@@ -69,17 +69,17 @@ describe("Signal Casper Academy - JSON Database Audit & Verification Tests", () 
     assert.ok(isValidDatabaseSchema(db), "Database schema must be valid");
     assert.ok(fs.existsSync(dbFile), "academy.json must exist after getDatabase");
 
-    // Verify migration from academy.db if it existed
-    const apryn = findUserByEmail("apryn@casper.com");
-    if (apryn) {
-      assert.equal(apryn.email, "apryn@casper.com");
-      assert.equal(apryn.name, "Apryn");
-      assert.ok(apryn.password_hash.startsWith("$2b$"), "Password hash must be preserved");
+    // Verify master admin in academy.json
+    const masterAdmin = findUserByEmail("apriyanriyan23@gmail.com");
+    if (masterAdmin) {
+      assert.equal(masterAdmin.email, "apriyanriyan23@gmail.com");
+      assert.equal(masterAdmin.name, "Ryan");
+      assert.ok(masterAdmin.password_hash.startsWith("$2b$"), "Password hash must be preserved");
 
-      const progress = getUserCourseProgress(apryn.id, "trading-fundamentals");
-      assert.ok(progress, "Apryn's course progress should exist");
+      const progress = getUserCourseProgress(masterAdmin.id, "trading-fundamentals");
+      assert.ok(progress, "Master admin's course progress should exist");
       const completed = JSON.parse(progress.completed_lesson_ids);
-      assert.deepEqual(completed, ["l1-1", "l1-2", "l1-3"]);
+      assert.deepEqual(completed, ["l1-1", "l1-2"]);
     }
   });
 

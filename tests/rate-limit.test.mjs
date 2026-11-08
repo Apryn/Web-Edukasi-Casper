@@ -444,10 +444,10 @@ describe("Signal Casper Academy - Sprint 2 Task 1: Authentication Rate Limiting 
     assert.equal(res6.status, 429);
   });
 
-  test("11. Data akun lama (admin apryn@casper.com) tidak berubah", () => {
-    const admin = findUserByEmail("apryn@casper.com");
-    assert.ok(admin, "Akun admin apryn@casper.com harus tetap ada");
-    assert.equal(admin.id, "24e81fbb-6ace-4bae-a7cd-8d19a7093b2e");
+  test("11. Data akun lama (admin apriyanriyan23@gmail.com) tidak berubah", () => {
+    const admin = findUserByEmail("apriyanriyan23@gmail.com");
+    assert.ok(admin, "Akun admin apriyanriyan23@gmail.com harus tetap ada");
+    assert.equal(admin.id, "6b9ba627-6741-4ee6-bf50-892469db05bf");
     assert.equal(admin.role, "ADMIN");
     assert.ok(
       admin.password_hash.startsWith("$2b$") && admin.password_hash.length === 60,

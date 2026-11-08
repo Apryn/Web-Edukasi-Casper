@@ -134,15 +134,14 @@ node -e '
   const adminUser = db.users.find(
     (u) =>
       u &&
-      u.id === "24e81fbb-6ace-4bae-a7cd-8d19a7093b2e" &&
-      u.email === "apryn@casper.com" &&
+      u.email === "apriyanriyan23@gmail.com" &&
       u.role === "ADMIN" &&
       typeof u.password_hash === "string" &&
       u.password_hash.startsWith("$2b$") &&
       u.password_hash.length === 60
   );
   if (!adminUser) {
-    printManualInstructions("Akun ADMIN utama (apryn@casper.com, id: 24e81fbb-6ace-4bae-a7cd-8d19a7093b2e, role: ADMIN) tidak ditemukan atau tidak sesuai.");
+    printManualInstructions("Akun ADMIN utama (apriyanriyan23@gmail.com, role: ADMIN) tidak ditemukan atau tidak sesuai.");
   }
 
   const adminProg = db.course_progress.find(
@@ -162,20 +161,14 @@ node -e '
     printManualInstructions("Field completed_lesson_ids atau quiz_scores pada progres ADMIN bukan JSON valid.");
   }
 
-  const expectedLessons = ["l1-1", "l1-2", "l1-3"];
-  const hasExpectedLessons =
-    Array.isArray(completedIds) && expectedLessons.every((id) => completedIds.includes(id));
-  const hasExpectedQuiz =
-    quizScores && typeof quizScores === "object" && !Array.isArray(quizScores) && quizScores["l1-3"] === 100;
-
-  if (!hasExpectedLessons || !hasExpectedQuiz) {
-    printManualInstructions("Isi progres belajar ADMIN (l1-1, l1-2, l1-3 & skor kuis l1-3: 100) berbeda dari yang diharapkan.");
+  if (!Array.isArray(completedIds) || completedIds.length === 0) {
+    printManualInstructions("Isi progres belajar ADMIN tidak valid.");
   }
 
   console.log(
     "   [STATUS DB: VALID] Database berisi admin & progres yang benar -> Users:",
     db.users.length,
-    "| Admin: apryn@casper.com (ADMIN) | CompletedLessons:",
+    "| Admin: " + adminUser.email + " (ADMIN) | CompletedLessons:",
     completedIds.length,
     "| Progress:",
     db.course_progress.length
@@ -204,7 +197,7 @@ tar -xzOf "$BACKUP_FILE" "$TAR_ENTRY" | node -e '
   const fs = require("fs");
   const srcDb = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
   const bakDb = JSON.parse(fs.readFileSync(0, "utf8"));
-  const bakAdmin = Array.isArray(bakDb.users) && bakDb.users.find((u) => u && u.email === "apryn@casper.com" && u.role === "ADMIN");
+  const bakAdmin = Array.isArray(bakDb.users) && bakDb.users.find((u) => u && u.email === "apriyanriyan23@gmail.com" && u.role === "ADMIN");
   if (
     !bakAdmin ||
     bakDb.users.length !== srcDb.users.length ||

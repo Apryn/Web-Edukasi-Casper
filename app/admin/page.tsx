@@ -458,8 +458,7 @@ export default function AdminPage() {
             <h1>Panel Kontrol Administrator &amp; Kurikulum</h1>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            {currentUser?.email === "apriyanriyan23@gmail.com" ||
-            currentUser?.email === "apryn@casper.com" ? (
+            {currentUser?.email === "apriyanriyan23@gmail.com" ? (
               <span
                 className="admin-badge-role"
                 style={{
@@ -1214,7 +1213,6 @@ export default function AdminPage() {
                   })
                   .map((u) => {
                     const isMaster =
-                      u.email.toLowerCase() === "apryn@casper.com" ||
                       u.email.toLowerCase() === "apriyanriyan23@gmail.com";
                     return (
                       <tr key={u.id}>
