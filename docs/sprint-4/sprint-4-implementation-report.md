@@ -1,9 +1,10 @@
-# SIGNAL CASPER ACADEMY — SPRINT 4 IMPLEMENTATION REPORT
-## Student Learning Intelligence & Adaptive Learning (Tasks 4.0–4.9)
+# SIGNAL CASPER ACADEMY â€” SPRINT 4 IMPLEMENTATION REPORT
+## Student Learning Intelligence & Adaptive Learning (Tasks 4.0â€“4.9)
 
-**Baseline Commit:** `e04cf4083eca4967c1bad0170fad60795bb02c63`  
-**Branch:** `main`  
-**Status:** COMPLETE — READY FOR FINAL ACCEPTANCE REVIEW
+**Baseline Commit:** `e04cf4083eca4967c1bad0170fad60795bb02c63`
+**Branch:** `main`
+**Status:** **`IMPLEMENTATION COMPLETE â€” BROWSER QA BLOCKED`**
+**Acceptance Date:** 2026-11-10
 
 ---
 
@@ -35,7 +36,26 @@ Sprint 4 delivers the complete **Student Learning Intelligence & Adaptive Learni
 
 ---
 
-## 2. Files Created & Modified
+## 2. Verification & Audit Hardening Summary
+
+1. **Test Count & Suite Reconciliation (Task 2):**
+   - Re-executed `node --test --test-concurrency=1 tests/*.test.mjs`.
+   - Exactly 17 test files executed, 244 test cases evaluated, 244 passed (100% pass rate).
+   - Reconciled the discrepancy where Node.js reported 15 suites (due to 2 files declaring top-level `test()` blocks without an outer `describe()` wrapper).
+2. **Learning Event Eviction Audit (Task 3):**
+   - Investigated the 10,000-event ring buffer in `lib/db.ts` (`recordLearningEvent`).
+   - Verified that primary milestones (`course_progress.started_at`, `course_progress.updated_at`, `quiz_submissions`) remain permanent SSOT and are never evicted.
+   - Verified that retention cohort week anchors and active learner counts remain uncorrupted.
+   - Updated `admin-education-intelligence.ts` to make the ring-buffer telemetry limit explicit in `continuityNote` when the event buffer reaches capacity.
+3. **Real Browser E2E Status (Task 1):**
+   - Evaluated host browser availability (`C:\Program Files\Google\Chrome\Application\chrome.exe` v156).
+   - Confirmed absence of Playwright or Puppeteer dependencies in `package.json` and lack of workspace browser automation tools.
+   - Identified that out-of-process HTTP execution would violate isolation by writing test fixtures into production `data/academy.json`.
+   - Officially classified as **`IMPLEMENTATION COMPLETE â€” BROWSER QA BLOCKED`** per acceptance instructions.
+
+---
+
+## 3. Files Created & Modified
 
 ### Created Architecture & Final Documentation (`docs/sprint-4/`)
 - `docs/sprint-4/sprint-4-architecture.md`
@@ -71,20 +91,19 @@ Sprint 4 delivers the complete **Student Learning Intelligence & Adaptive Learni
 - `app/api/admin/learning-intelligence/engagement/route.ts`
 
 ### Created & Updated Frontend UI Components
-- `app/dashboard/StudentLearningWorkspace.tsx` (Created)
-- `app/admin/AdminEducationIntelligencePanel.tsx` (Created)
-- `app/dashboard/page.tsx` (Integrated `StudentLearningWorkspace` & dual mode switcher)
-- `app/admin/page.tsx` (Integrated `AdminEducationIntelligencePanel` tab)
-- `app/kelas/[slug]/ClassroomClient.tsx` (Added non-blocking `LESSON_STARTED` activity tracking)
-- `app/globals.css` (Added responsive `.learning-*` layout & mobile/tablet breakpoint rules)
+- `app/dashboard/StudentLearningWorkspace.tsx`
+- `app/admin/AdminEducationIntelligencePanel.tsx`
+- `app/dashboard/page.tsx`
+- `app/admin/page.tsx`
+- `app/kelas/[slug]/ClassroomClient.tsx`
+- `app/globals.css`
 
 ### Modified Data & Progress Persistence Layer
-- `lib/db.ts` (Added backward-compatible `learning_events`, `recommendation_dismissals`, optional `started_at`/`completed_at` on `DbCourseProgress`, and idempotent event helpers)
-- `lib/server-progress.ts` (Added automatic recording of `COURSE_STARTED`, `LESSON_COMPLETED`, `QUIZ_SUBMITTED`, and `COURSE_COMPLETED` events)
+- `lib/db.ts`
+- `lib/server-progress.ts`
 
-### Created Automated Test Suites (`tests/`)
+### Automated Test Suites (`tests/`)
 - `tests/learning-intelligence-engine.test.mjs`
 - `tests/learning-recommendations.test.mjs`
 - `tests/learning-api-authorization.test.mjs`
 - `tests/sprint-4-e2e.test.mjs`
-

@@ -33,7 +33,25 @@ import {
 // ── Configuration Constants ──────────────────────────────────────
 
 const DATA_DIR = path.join(process.cwd(), "data");
-const JOURNALS_DIR = path.join(DATA_DIR, "journals");
+
+function resolveJournalsDir(): string {
+  if (
+    (process.env.NODE_ENV !== "production" || process.env.ALLOW_TEST_DB_OVERRIDE === "true") &&
+    process.env.SC_TEST_JOURNALS_DIR
+  ) {
+    const resolved = path.resolve(process.env.SC_TEST_JOURNALS_DIR);
+    const resolvedDataDir = path.resolve(DATA_DIR);
+    if (
+      resolved.startsWith(resolvedDataDir + path.sep) &&
+      path.basename(resolved).includes("test")
+    ) {
+      return resolved;
+    }
+  }
+  return path.join(DATA_DIR, "journals");
+}
+
+const JOURNALS_DIR = resolveJournalsDir();
 const CORRUPTED_DIR = path.join(JOURNALS_DIR, "corrupted");
 const AUDIT_DIR = path.join(JOURNALS_DIR, "audit");
 const BACKUPS_DIR = path.join(DATA_DIR, "backups", "journals");

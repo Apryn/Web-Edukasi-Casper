@@ -1,67 +1,83 @@
-# SIGNAL CASPER ACADEMY — SPRINT 4 TEST & QA REPORT
-## Automated Unit, Integration, Security, Build & E2E Verification
+# SIGNAL CASPER ACADEMY â€” SPRINT 4 TEST & QA REPORT
+## Automated Unit, Integration, Security, Build & Acceptance Verification
 
-**Date:** 2026-11-08  
-**Combined Test Result:** `244 / 244 PASS` (15 Test Suites, 0 Failures)  
-**TypeScript (`npx tsc --noEmit`):** `0 Errors`  
-**ESLint (`npm run lint`):** `0 Errors` (15 pre-existing warnings in legacy pages; 0 warnings in Sprint 4 files)  
-**Production Build (`npm run build`):** `PASS` (49 routes compiled)
-
----
-
-## 1. Test Suite Summary
-
-| Suite | File | Tests | Result |
-|---|---|---:|---|
-| 1. Academy Core E2E | `tests/academy.test.mjs` | 26 | PASS |
-| 2. Database Integrity | `tests/db.test.mjs` | 6 | PASS |
-| 3. Auth Rate Limiting | `tests/rate-limit.test.mjs` | 12 | PASS |
-| 4. Sprint 2 Course Editor QA | `tests/sprint2-course-editor-qa.test.mjs` | 9 | PASS |
-| 5. Journal Storage Engine | `tests/journal-storage.test.mjs` | 24 | PASS |
-| 6. Journal Service Layer | `tests/journal-service.test.mjs` | 55 | PASS |
-| 7. Core Analytics Metrics | `tests/analytics-core-metrics.test.mjs` | 20 | PASS |
-| 8. Drawdown Analytics | `tests/analytics-drawdown.test.mjs` | 16 | PASS |
-| 9. Time-Series Analytics | `tests/analytics-time-series.test.mjs` | 16 | PASS |
-| 10. Dimensional Slicer | `tests/analytics-dimensional.test.mjs` | 12 | PASS |
-| 11. Analytics Orchestrator | `tests/analytics-orchestrator.test.mjs` | 8 | PASS |
-| 12. Journal API Authorization | `tests/journal-api-authorization.test.mjs` | 9 | PASS |
-| 13. Sprint 3 E2E QA | `tests/sprint-3-e2e.test.mjs` | 6 | PASS |
-| 14. **Sprint 4 Learning Intelligence Engine** | `tests/learning-intelligence-engine.test.mjs` | 8 | **PASS** |
-| 15. **Sprint 4 Adaptive Recommendations** | `tests/learning-recommendations.test.mjs` | 7 | **PASS** |
-| 16. **Sprint 4 Learning API Authorization & Privacy** | `tests/learning-api-authorization.test.mjs` | 8 | **PASS** |
-| 17. **Sprint 4 End-to-End Flow & UI Contracts** | `tests/sprint-4-e2e.test.mjs` | 3 | **PASS** |
-
-*(Note: `tests/db.test.mjs` is invoked via `npm run test:db` and `node --test tests/*.test.mjs` executes all 15 suites / 244 tests in a single combined run).*
+**Date:** 2026-11-10
+**Final Status:** **`IMPLEMENTATION COMPLETE â€” BROWSER QA BLOCKED`**
+**Combined Test Result:** `244 / 244 PASS` (17 Test Files, 15 Test Suites, 0 Failures, 0 Skipped)
+**Execution Command:** `node --test --test-concurrency=1 tests/*.test.mjs`
+**TypeScript (`npx tsc --noEmit`):** `0 Errors`
+**ESLint (`npm run lint`):** `0 Errors` (15 pre-existing warnings in legacy presentation pages; 0 warnings in Sprint 3/4 files)
+**Production Build (`npm run build`):** `PASS` (49 routes compiled successfully)
 
 ---
 
-## 2. Sprint 4 Test Coverage Breakdown
+## 1. Test Suite Reconciliation Matrix
 
-### 2.1 Learning Intelligence Engine (`tests/learning-intelligence-engine.test.mjs`)
-- **LIE-01:** Student with zero progress returns `NO_DATA` status and `0%` metrics without `NaN` or division by zero.
-- **LIE-02:** Student with started course and partial lesson completion calculates exact percentage and next resume target.
-- **LIE-03:** Student with completed reading lessons but failed required quiz (`< 70%`) remains `IN_PROGRESS` and ineligible for certificate.
-- **LIE-04:** Student with completed lessons AND passed all required quizzes (`>= 70%`) achieves `COMPLETED` and certificate eligibility.
-- **LIE-05 & LIE-06:** Multiple quiz attempts, retry calculation, weak topic (`< 70%` / `NEEDS_PRACTICE`) and strong topic (`>= 85%` / `MASTERED`) classification.
-- **LIE-07:** Active learning days, current streak, longest streak, and 7-day UTC activity timeline.
-- **LIE-08 & LIE-09:** Draft and archived courses excluded from published learning denominators while preserving archived student history and ignoring stale deleted lesson IDs.
-- **LIE-10:** Admin course completion rate, lesson drop-off ("Belum Melanjutkan"), quiz/question difficulty without answer key leakage, ISO-week retention cohorts, and small-cohort suppression (`MIN_SAFE_COHORT_SIZE = 3`).
+Node.js built-in test runner reports `15 suites` when executing `tests/*.test.mjs` because 15 files wrap their tests in a top-level `describe()` block, while 2 files (`analytics-drawdown.test.mjs` and `analytics-time-series.test.mjs`) declare top-level `test()` blocks directly (`# suites 0`). All 17 test files and 244 test cases run and pass 100%.
 
-### 2.2 Adaptive Recommendation Engine (`tests/learning-recommendations.test.mjs`)
-- **REC-01:** New student with zero progress receives `START_FOUNDATION` pointing to `trading-fundamentals` (`SC-01`).
-- **REC-02:** Student with active in-progress course (`< 7` inactive days) receives `CONTINUE_LEARNING` and `START_FOUNDATION` (if they jumped ahead).
-- **REC-03 & REC-04:** Student with failed quiz (`< 70%`) across multiple attempts receives top-priority `RETRY_QUIZ` (`priority = 95`) and `REVIEW_WEAK_TOPIC` (`priority = 84`).
-- **REC-05:** Student inactive `>= 7` days with unfinished course receives `RETURN_TO_LEARNING` (`priority = 92`).
-- **REC-06:** Student who graduated `SC-01` receives `ADVANCE_TO_NEXT_COURSE` (`priority = 66`).
-- **REC-07:** Deterministic priority ranking, max cap (`<= 5`), dismissal persistence, manual restore, and automatic resurfacing when `evidenceSignature` changes after a new quiz attempt.
+| # | Test File | Test Category | Actual Tests | Suites (Node runner) | Result |
+|---|---|---|---:|---:|---|
+| 1 | `tests/academy.test.mjs` | Integration & E2E Handlers | 26 | 1 | **PASS** |
+| 2 | `tests/db.test.mjs` | Database & Concurrency Unit | 8 | 1 | **PASS** |
+| 3 | `tests/rate-limit.test.mjs` | Security & Rate Limiting Integration | 12 | 1 | **PASS** |
+| 4 | `tests/qa-sprint2-task3-3.test.mjs` | Admin Course Editor QA Integration | 9 | 1 | **PASS** |
+| 5 | `tests/journal-storage.test.mjs` | Storage & Concurrency Unit | 24 | 1 | **PASS** |
+| 6 | `tests/journal-service.test.mjs` | Financial Precision & Domain Unit | 55 | 1 | **PASS** |
+| 7 | `tests/analytics-core-metrics.test.mjs` | Quantitative Analytics Unit | 20 | 1 | **PASS** |
+| 8 | `tests/analytics-drawdown.test.mjs` | Underwater & Drawdown Analytics Unit | 16 | 0 | **PASS** |
+| 9 | `tests/analytics-time-series.test.mjs` | Time-Series Analytics Unit | 16 | 0 | **PASS** |
+| 10 | `tests/analytics-dimensional-slicer.test.mjs` | Multi-Dimensional Slicer Unit | 11 | 1 | **PASS** |
+| 11 | `tests/analytics-orchestrator.test.mjs` | Composite Analytics Orchestrator Unit | 6 | 1 | **PASS** |
+| 12 | `tests/journal-api-authorization.test.mjs` | Privacy, Consent & Auth Integration | 10 | 1 | **PASS** |
+| 13 | `tests/qa-sprint3-final.test.mjs` | Sprint 3 Final Integration QA | 6 | 1 | **PASS** |
+| 14 | `tests/learning-intelligence-engine.test.mjs` | Learning Intelligence Engine Unit | 8 | 1 | **PASS** |
+| 15 | `tests/learning-recommendations.test.mjs` | Adaptive Recommendation Engine Unit | 6 | 1 | **PASS** |
+| 16 | `tests/learning-api-authorization.test.mjs` | Learning API Auth, Privacy & Zero-Leakage | 8 | 1 | **PASS** |
+| 17 | `tests/sprint-4-e2e.test.mjs` | End-to-End Flow & DOM/CSS Contract | 3 | 1 | **PASS** |
+| **Total** | **17 Test Files** | | **244** | **15** | **244 / 244 PASS (100%)** |
 
-### 2.3 API Authorization, Privacy & Zero-Leakage (`tests/learning-api-authorization.test.mjs`)
-- **LSEC-01:** Unauthenticated requests to all 4 student endpoints and all 5 admin endpoints return `401`.
-- **LSEC-02:** Student A accessing own dashboard, progress, recommendations, dismiss/restore, and activity recording returns `200`/`201`.
-- **LSEC-03:** Student A attempting to query Student B's `userId` returns `403`.
-- **LSEC-04 & LSEC-06:** Mentor and Student attempting to access cross-user learning or any Admin Education Intelligence endpoint return `403`.
-- **LSEC-05:** Admin accessing all 5 Admin Education Intelligence endpoints across `7d`, `30d`, `90d`, and `all` periods returns `200`.
-- **LSEC-07:** Invalid `period`, invalid recommendation `action`, invalid `eventType`, or non-existent `courseSlug`/`lessonId` return `400`/`404` safely.
-- **LSEC-08 & LSEC-09:** Serialized payloads across student and admin endpoints are verified to contain zero `correctAnswer` / `correctOptionIndex` keys and zero private trading journal fields (`netPnl`, `initialBalance`, `cashTransactions`, `entryPrice`, `stopLoss`).
-- **LSEC-10:** SHA-256 verification confirms `data/academy.json` is 100% unmodified after test execution.
+---
 
+## 2. Test Layer Categorization & Evidence
+
+### 2.1 Automated Unit Tests (148 Tests)
+- `tests/journal-service.test.mjs` (55 tests): Financial arithmetic using BigInt minor units, Net P/L, trade lifecycle (OPEN/CLOSED/CANCELLED), cash transactions (DEPOSIT/WITHDRAWAL), fee deduction non-overlapping logic, and maximum safe integer boundary validation.
+- `tests/journal-storage.test.mjs` (24 tests): Atomic file writes, mutex serialization (`UserPartitionLock`), backup snapshot creation, quarantine auto-recovery, and crash-resilient tombstone commits.
+- `tests/analytics-core-metrics.test.mjs` (20 tests): Win rates (comprehensive vs decisive), profit factor without float division bugs, rational expectancy cross-multiplication, and exclusion diagnostics.
+- `tests/analytics-drawdown.test.mjs` (16 tests): Peak equity tracking, absolute drawdown nominal and percentage, duration, and recovery tracking.
+- `tests/analytics-time-series.test.mjs` (16 tests): Chronological grouping (daily, weekly, monthly, day-of-week, session), multi-currency aggregation.
+- `tests/analytics-dimensional-slicer.test.mjs` (11 tests): Slicing across assets, setups, sessions, emotions, and mistake categories.
+- `tests/analytics-orchestrator.test.mjs` (6 tests): Cross-module reconciliation across core, drawdown, time-series, and slices.
+
+### 2.2 API & Security Integration Tests (71 Tests)
+- `tests/academy.test.mjs` (26 tests): End-to-end curriculum access, progress validation, server quiz grading, anti-score manipulation, atomic rollback, and role authorization.
+- `tests/rate-limit.test.mjs` (12 tests): In-memory sliding window, IP isolation, failure lockout, and HTTP 429 Retry-After headers.
+- `tests/journal-api-authorization.test.mjs` (10 tests): Tenant partition isolation, mentor consent scope enforcement (`ANALYTICS_ONLY` vs `FULL_JOURNAL`), immediate revocation, and admin journal access prohibition.
+- `tests/qa-sprint2-task3-3.test.mjs` (9 tests): Admin course editor, copy-on-write C1-C9 overrides, module/lesson/quiz CRUD, and student progress protection.
+- `tests/learning-api-authorization.test.mjs` (8 tests): RBAC on student dashboard/progress/recommendations/activity and admin intelligence, zero quiz answer key leakage, and zero private journal leakage.
+- `tests/db.test.mjs` (8 tests): SQLite to JSON migration, tenant isolation, health diagnostics, and cache rollback on failed write.
+
+### 2.3 Contract & Domain Engine Tests (25 Tests)
+- `tests/learning-intelligence-engine.test.mjs` (8 tests): Zero-progress `NO_DATA`, partial completion percentages, certificate eligibility evaluation, weak/strong topic classification, active days/streaks, and small-cohort suppression (`MIN_SAFE_COHORT_SIZE = 3`).
+- `tests/learning-recommendations.test.mjs` (6 tests): Deterministic generation of all 7 recommendation categories, priority ordering, max cap `<= 5`, dismissal persistence with `evidenceSignature`, and automatic resurfacing upon new evidence.
+- `tests/qa-sprint3-final.test.mjs` (6 tests): End-to-end journal flow, cash transactions, consent grant/revoke, and UI/CSS class contracts.
+- `tests/sprint-4-e2e.test.mjs` (3 tests): Full student learning flow, admin intelligence multi-period aggregation, and DOM/CSS layout contract validation.
+
+### 2.4 Actual Browser E2E Status: BLOCKED
+- **Investigation Result:**
+  - Real browser automation cannot be executed in this workspace.
+  - While Google Chrome is present on the host filesystem (`C:\Program Files\Google\Chrome\Application\chrome.exe`), no Playwright or Puppeteer packages are installed in `package.json`.
+  - Spawning a live Next.js HTTP server would write test accounts and activity directly into `data/academy.json`, which is strictly prohibited by data integrity constraints and would fail the single-admin deployment assertion (`deploy.ps1`).
+  - As instructed, this gap is explicitly reported as **`BLOCKED`** and not disguised as contract testing.
+
+---
+
+## 3. Environment & Regression Verification
+
+- **TypeScript Strict Mode:** `0 errors` via `npx tsc --noEmit`.
+- **ESLint:** `0 errors` via `npm run lint`.
+- **Next.js Production Build:** 49 routes successfully compiled and optimized via `npm run build`.
+- **Production Database Integrity:**
+  - `data/academy.json` is preserved with exactly 1 Master Admin account (`apriyanriyan23@gmail.com`, role `ADMIN`).
+  - Verified SHA-256 integrity and zero contamination from test fixtures.
+  - `data/journals/` and backup archives remain pristine and unmodified.

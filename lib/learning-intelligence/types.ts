@@ -342,6 +342,7 @@ export interface AdminEngagementAndRetentionReport {
   };
   retentionCohorts: AdminRetentionCohortItem[];
   continuityNote: string;
+  isTelemetryBufferAtCapacity?: boolean;
 }
 
 export interface AdminFullEducationIntelligenceBundle {

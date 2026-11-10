@@ -816,12 +816,18 @@ export function buildAdminEducationIntelligence(params: {
       neverStarted,
     },
     retentionCohorts,
+    isTelemetryBufferAtCapacity: Boolean(
+      params.learningEventRows && params.learningEventRows.length >= 10000
+    ),
     continuityNote:
-      engagementStatus === "NO_DATA"
+      (engagementStatus === "NO_DATA"
         ? "Belum ada aktivitas belajar siswa yang tercatat."
         : engagementStatus === "INSUFFICIENT_DATA"
           ? `Kohort aktif (${studentsStartedAnyCourse} siswa) masih di bawah ambang batas privasi minimum (${MIN_SAFE_COHORT_SIZE} siswa). Rincian retensi per-kohort disamarkan untuk menjaga privasi.`
-          : "Metrik retensi dihitung berdasarkan kohort minggu aktivitas belajar pertama dan kembalinya siswa pada hari berikutnya.",
+          : "Metrik retensi dihitung berdasarkan kohort minggu aktivitas belajar pertama dan kembalinya siswa pada hari berikutnya.") +
+      (params.learningEventRows && params.learningEventRows.length >= 10000
+        ? " (Buffer telemetri aktivitas beroperasi dalam batas bergulir 10.000 event terbaru; progres kelas dan riwayat kuis tersimpan permanen sebagai SSOT)."
+        : ""),
   };
 
   return {

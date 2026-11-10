@@ -648,6 +648,8 @@ h1,h2,h3,p{margin-top:0}.hero h1{font:600 clamp(42px,5.2vw,67px)/1.08 'Manrope',
 
 /* ── SPRINT 4: STUDENT LEARNING INTELLIGENCE & ADAPTIVE LEARNING ─── */
 .learning-workspace{display:flex;flex-direction:column;gap:22px;min-width:0}
+.learning-table-wrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.learning-panel{min-width:0;max-width:100%}
 .learning-kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
 .learning-continue-banner{background:linear-gradient(135deg,#0d1b28 0%,#08111a 100%);border:1px solid #214059;border-left:4px solid var(--cyan);padding:20px 24px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
 .learning-rec-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}

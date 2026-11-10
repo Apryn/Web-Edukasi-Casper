@@ -101,7 +101,25 @@ export interface DatabaseHealth {
 // ── Directories & File Paths ─────────────────────────────────────
 const dataDir = path.join(process.cwd(), "data");
 const backupDir = path.join(dataDir, "backups");
-const defaultDbFilePath = path.join(dataDir, "academy.json");
+
+function resolveInitialDbPath(): string {
+  if (
+    (process.env.NODE_ENV !== "production" || process.env.ALLOW_TEST_DB_OVERRIDE === "true") &&
+    process.env.SC_TEST_DATABASE_PATH
+  ) {
+    const resolved = path.resolve(process.env.SC_TEST_DATABASE_PATH);
+    const resolvedDataDir = path.resolve(dataDir);
+    if (
+      resolved.startsWith(resolvedDataDir + path.sep) &&
+      (path.basename(resolved).includes(".test.") || path.basename(resolved).includes(".e2e."))
+    ) {
+      return resolved;
+    }
+  }
+  return path.join(dataDir, "academy.json");
+}
+
+const defaultDbFilePath = resolveInitialDbPath();
 let dbFilePath = defaultDbFilePath;
 const sqliteLegacyPath = path.join(dataDir, "academy.db");
 
