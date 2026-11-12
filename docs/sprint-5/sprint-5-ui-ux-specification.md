@@ -1,106 +1,110 @@
 # SIGNAL CASPER ACADEMY — SPRINT 5
-# UI/UX & INTERACTION SPECIFICATION
+# UI/UX & INTERACTION SPECIFICATION — REVISION 3
 
 **Title:** Practical Drill & Pre-Session Checklist User Experience  
 **Sprint:** Sprint 5  
-**Document Version:** 1.0.0  
-**Status:** PLANNING ONLY — NO IMPLEMENTATION  
-**Date:** November 10, 2026  
+**Document Version:** 3.0.0  
+**Status:** PLANNING ONLY — REVISED POST PRODUCT OWNER CONSISTENCY REVIEW (REV 3)  
+**Baseline:** Sprint 1–4 Accepted & Frozen  
+**Date:** November 12, 2026  
 
 ---
 
-## 1. DESIGN SYSTEM & VISUAL HARMONY
+## 1. DESIGN PHILOSOPHY & SCOPE BOUNDARIES
 
-The Practical Drill Engine adheres strictly to the existing Casper dark editorial aesthetic:
-- **Background**: Deep void slate (`#0b0f17`, `#111827`)
-- **Card Background**: Elevated dark container (`#161e2e`, border `#1f293d`)
-- **Primary Accent**: Casper Cyan (`#41d9ef`) for active states, crosshairs, and primary actions.
-- **Secondary Accent**: Emerald Mint (`#53d9bf`) for winning/passing confirmations and demand zones.
-- **Warning / Invalidation**: Amber/Rose (`#f43f5e`, `#f59e0b`) for stop-loss levels and supply zones.
+The UI/UX of the Practical Drill Engine is purposefully scoped to maximize pedagogical feedback without introducing the overhead of a full charting terminal like TradingView.
+
+### Visual Aesthetic (Casper Dark Editorial)
+- **Base Canvas**: Deep Slate (`#0b0f17`, `#111827`)
+- **Containers**: Solid Dark Panel (`#161e2e`, border `#1f293d`)
+- **Cyan Accent**: `#41d9ef` (Active crosshairs, primary focus, interactive level picks)
+- **Safety Gate / Risk Amber**: `#f59e0b` (Alerts for safety gate violations)
+- **Passed Emerald**: `#53d9bf` (Validated setups and passing milestones)
+- **Invalidation Rose**: `#f43f5e` (Stop-loss levels and broken structure)
 
 ---
 
-## 2. STUDENT DRILL WORKSPACE (`/belajar/drill/[id]`)
+## 2. SCOPED CHART VIEWER INTERACTION
 
-### 2.1 Screen Architecture & Two-Column Layout (Desktop $\ge 1024\text{px}$)
 ```
-┌───────────────────────────────────────────────┬───────────────────────────────────────────────┐
-│ LEFT COLUMN: INTERACTIVE CHART CASE           │ RIGHT COLUMN: DECISION & EXECUTION CONSOLE    │
-├───────────────────────────────────────────────┼───────────────────────────────────────────────┤
-│ [Topline: XAUUSD · H1 · Provenance Verified]  │ [Step 1: Bias Selection]                      │
-│                                               │  (•) Bullish   ( ) Bearish   ( ) Neutral      │
-│ [Zoom Controls: (+) (-) (Reset) (Crosshair)]  │                                               │
-│                                               │ [Execution Stance]                            │
-│ ┌───────────────────────────────────────────┐ │  [✓ Take Position]   [  NO-TRADE Stance]      │
-│ │                                           │ │                                               │
-│ │   [ INTERACTIVE SVG / CANVAS CHART ]      │ │ [Step 2: Price Levels]                        │
-│ │                                           │ │  Entry Price:        [ 2666.80 ]              │
-│ │   - Pan via drag                          │ │  Stop-Loss (SL):     [ 2670.20 ]              │
-│ │   - Zoom via scroll / pinch               │ │  Take-Profit (TP):   [ 2655.00 ]              │
-│ │   - Crosshair price readout               │ │  Implied R:R:        1 : 3.47  (Valid ≥ 1:2)  │
-│ │                                           │ │                                               │
-│ └───────────────────────────────────────────┘ │ [Step 3: Setup Confirmations]                 │
-│                                               │  [x] Liquidity Sweep   [x] FVG Tap            │
-│ [Context Bar: Asian Session High Sweep Case]  │                                               │
-│                                               │ [Step 4: Rationale & Thesis]                  │
-│                                               │  [ Textarea: Rationale details...           ] │
-│                                               │                                               │
-│                                               │ [ BUTTON: Submit Drill Decision ]             │
-└───────────────────────────────────────────────┴───────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ [XAUUSD · H1 · Provenance Verified]       [Zoom: (-) (+) (R)]│
+├─────────────────────────────────────────────────────────────┤
+│                                                [ $2,675.00] │
+│                                                             │
+│       [ CLEAN HISTORICAL CHART IMAGE (PNG/WebP) ]           │
+│                                                             │
+│  - Pan: Drag with mouse / one-finger swipe                  │
+│  - Zoom: Scroll wheel / buttons (1.0x to 3.0x)              │
+│  - Crosshair: Coordinate tracking + Floating Price Pill     │
+│  - Click-to-Place: Sets Entry / SL / TP with visual lines   │
+│                                                             │
+│                                                [ $2,645.00] │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 Interactive Chart Behavior
-1. **Pan & Drag**: Students can click-and-drag across the chart area. Handled via standard Pointer Events (`onPointerDown`, `onPointerMove`, `onPointerUp`).
-2. **Zoom In/Out**: Zoom level ranges between $1.0\times$ and $3.0\times$. Zoom can be controlled via top-bar buttons (`+`, `-`, `Reset`) or wheel pinch.
-3. **Crosshair & Price Probe**: Hovering displays coordinate crosshairs with a floating price badge on the Y-axis, allowing students to read price levels directly before typing them into input fields.
-4. **Zero Horizontal Window Scroll**: The chart viewer is strictly contained inside a container with `overflow: hidden; max-width: 100%;`.
+### 2.1 Interaction Rules:
+1. **Pan & Drag**: Enabled through standard pointer events (`PointerDown`, `PointerMove`, `PointerUp`) with CSS `touch-action: none; cursor: crosshair;`.
+2. **Zoom Range**: Clamped strictly between $1.0\times$ (fit container) and $3.0\times$. Zoom anchor centers on cursor position or explicit zoom controls (`+`, `-`, `Reset`).
+3. **Crosshair & Price Readout**: As the user moves across the chart, horizontal and vertical dashed cyan guide lines follow the pointer, and a price pill displays the interpolated price based on Y-axis normalization.
+4. **Interactive Level Placement**: Clicking with "Set Entry" active places a cyan dashed line; "Set Stop-Loss" places a rose dashed line; "Set Target" places an emerald dashed line. Coordinates automatically populate the input fields in the right-hand console.
 
 ---
 
-## 3. DRILL EVALUATION DEBRIEF EXPERIENCE
+## 3. DECISION CONSOLE & SUBMISSION FLOW
 
-Upon submission, the right-hand console transitions smoothly into the **Evaluation Debrief**:
-1. **Header Banner**:
-   - Passed ($\ge 70\%$): Glowing emerald badge with `"Evaluasi Praktik: LULUS (92%)"` and animated checkmark.
-   - Failed ($< 70\%$): Amber badge with `"Perlu Latihan Ulang (58%)"` and specific guidance to retry.
-2. **Rubric Scorecard Table**:
-   - Displays each of the 5 criteria: Weight, Points Earned, and expand/collapse detailed explanation.
-3. **Solution Overlay Toggle**:
-   - The left-hand chart view activates a toggle button: `"Tampilkan Solusi Institusional"`.
-   - Activating overlays the instructor's annotated zones (Entry FVG, Invalidation wick line, Target liquidity pool).
+### 3.1 Two-Stance Selection
+The top of the decision console offers an explicit toggle:
+* `[ AMBIL POSISI / TAKE TRADE ]`: Activates Entry, SL, TP, R:R calculation, and Confirmation checklist.
+* `[ DISIPLIN NO-TRADE ]`:
+  - Instantly collapses price input fields (no Stop-Loss required).
+  - Expands structured contextual reasons:
+    - `[ ]` Rasio Risk/Reward tidak memadai (< 1:2)
+    - `[ ]` Likuiditas utama belum diambil (Likuiditas belum tersapu)
+    - `[ ]` Mendekati rilis berita ekonomi berdampak tinggi (FOMC/CPI/NFP)
+    - `[ ]` Market berada di tengah range konsolidasi tanpa arah jelas
+  - Requires the student to write a brief thesis defending their decision to remain on the sidelines.
 
 ---
 
-## 4. RESPONSIVE MATRIX & VIEWPORT RULES
+## 4. EVALUATION DEBRIEF & SAFETY GATE STATES
 
-| Viewport | Screen Width | Layout Pattern | Chart Interaction Rule |
+Upon submission, the console displays one of three clear states:
+
+```mermaid
+graph TD
+    Sub[Submission Evaluated] --> Check{Safety Gate Check\nInvalidation Score >= 18?}
+    Check -->|No| StateWarning[FAILED_SAFETY_GATE\nBanner Amber: Stop-Loss Unsafe]
+    Check -->|Yes| CheckTotal{Total Score >= 70%?}
+    CheckTotal -->|Yes| StatePassed[PASSED\nBanner Emerald: Lulus Sempurna]
+    CheckTotal -->|No| StateFailed[FAILED\nBanner Red: Belum Lulus]
+```
+
+### 4.1 State Banners:
+1. **`PASSED` (Emerald)**:
+   - *"Selamat! Evaluasi Praktik LULUS (Skor: 92%, Stop-Loss: 22/25)"*
+   - Shows badge: `SAFETY CRITERIA MET`.
+2. **`FAILED_SAFETY_GATE` (Amber / Warning)**:
+   - *"Belum Lulus — Nilai Total 76%, Namun Manajemen Risiko Tidak Memenuhi Standar Keselamatan"*
+   - Explanatory callout: *"Nilai Invalidation/Stop-Loss Anda adalah 12/25 (Syarat minimal: 18/25). Posisi dengan stop-loss terlalu ketat atau tidak berlandaskan struktur dianggap berisiko tinggi dalam trading nyata."*
+3. **`FAILED` (Rose / Red)**:
+   - *"Belum Lulus — Skor Total 54% (Target: ≥ 70%)"*
+
+### 4.2 Debrief Drawer & Solution Toggle
+- **Criterion Breakdown**: Collapsible cards for all 5 criteria with points earned and detailed feedback.
+- **Solution Overlay**: A secure toggle button `"Lihat Solusi Institusional"` loads the instructor's annotated chart overlay via `/api/drills/[id]/solution`.
+- **Immediate Re-Attempt**: A `"Coba Lagi Studi Kasus"` button allows instant retry without waiting timers.
+- **Attempt History Drawer**: Displays derived progress summary (`firstScore`, `bestScore`, `latestScore`, `attemptsCount`) and lists all prior attempts.
+
+---
+
+## 5. RESPONSIVE CONTAINMENT MATRIX
+
+| Viewport | Width | Layout | Chart Containment |
 | :--- | :--- | :--- | :--- |
-| **Desktop Ultra** | $1440\text{px}$ | 2 Columns ($60\%$ Chart, $40\%$ Console) | Full wheel zoom + crosshair active |
-| **Tablet** | $768\text{px}$ | Stacked Vertical (Chart top $420\text{px}$, Console bottom) | Touch drag + explicit Zoom buttons |
-| **Mobile Standard** | $390\text{px}$ | Single column stacked | Pinch-to-zoom + bottom sticky submit bar |
-| **Mobile Compact** | $360\text{px}$ | Single column compact | Touch pan container with `touch-action: none` |
+| **Desktop Ultra** | $1440\text{px}$ | 2 Columns ($60\%$ Chart, $40\%$ Console) | Fixed aspect ratio, pan-zoom active |
+| **Tablet** | $768\text{px}$ | Stacked Vertical | Chart height $420\text{px}$, touch drag active |
+| **Mobile Standard** | $390\text{px}$ | Stacked Single Column | Pinch-zoom, full width, sticky submit CTA |
+| **Mobile Compact** | $360\text{px}$ | Stacked Single Column | Chart height $300\text{px}$, `overflow-x: hidden` |
 
-*Zero Window Overflow Rule*: Like Sprint 4, all tables and inputs must enforce:
-```css
-.drill-workspace-wrap {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-}
-.drill-chart-container {
-  width: 100%;
-  max-width: 100%;
-  overflow: hidden;
-  position: relative;
-}
-```
-
----
-
-## 5. UI STATES (LOADING, EMPTY, ERROR, RETRY)
-
-1. **Loading State**: Shimmer skeleton with pulse effect over chart container and input console.
-2. **Empty / No Drills Available**: Informative empty state card with icon `Compass` and CTA: *"Belum ada studi kasus terbuka pada modul ini. Selesaikan materi pembelajaran terlebih dahulu."*
-3. **Error State (Network/Validation)**: Non-blocking toast notification with retry button. In case of invalid inputs (e.g. SL is above entry for a long trade), the input displays red border with helper text: *"Stop-Loss untuk posisi Buy harus berada di bawah harga Entry."*
-4. **Retry Flow**: Clear `"Coba Lagi Studi Kasus"` button allowing the student to reset fields while retaining past attempt history in an expander below.
-
+*Guaranteed Rule*: All chart canvases and containers enforce `max-width: 100%; overflow: hidden;` preventing any horizontal page scroll on mobile devices.

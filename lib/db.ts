@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import type {
+  DbDrillCase,
+  DbDrillSubmission,
+  DbTradePreparationChecklist,
+} from "./drill-types";
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -84,6 +89,9 @@ export interface DatabaseSchema {
   admin_audit_logs?: DbAdminAuditLog[];
   learning_events?: DbLearningEvent[];
   recommendation_dismissals?: DbRecommendationDismissal[];
+  drills?: DbDrillCase[];
+  drill_submissions?: DbDrillSubmission[];
+  trade_preparation_checklists?: DbTradePreparationChecklist[];
 }
 
 export interface DatabaseHealth {
@@ -314,6 +322,11 @@ function loadDatabase(): DatabaseSchema {
 
       if (isValidDatabaseSchema(parsed)) {
         parsed.custom_courses = Array.isArray(parsed.custom_courses) ? parsed.custom_courses : [];
+        parsed.drills = Array.isArray(parsed.drills) ? parsed.drills : [];
+        parsed.drill_submissions = Array.isArray(parsed.drill_submissions) ? parsed.drill_submissions : [];
+        parsed.trade_preparation_checklists = Array.isArray(parsed.trade_preparation_checklists)
+          ? parsed.trade_preparation_checklists
+          : [];
         cache = parsed;
         const stat = fs.statSync(dbFilePath);
         lastKnownMtimeMs = stat.mtimeMs;
@@ -379,6 +392,9 @@ function loadDatabase(): DatabaseSchema {
     users: [],
     course_progress: [],
     quiz_submissions: [],
+    drills: [],
+    drill_submissions: [],
+    trade_preparation_checklists: [],
   };
   persistDirect(cache);
   createBackup("initial");
@@ -445,7 +461,7 @@ function persistDirect(data: DatabaseSchema): void {
 }
 
 // Execute state mutation with rollback safety
-function executeMutation<T>(mutator: (db: DatabaseSchema) => T): T {
+export function executeMutation<T>(mutator: (db: DatabaseSchema) => T): T {
   const current = loadDatabase();
   // Deep clone to a working copy so cache is never tainted if mutator or write fails
   const workingCopy = structuredClone(current);
@@ -1024,6 +1040,34 @@ export function getAdminAuditLogs(limit = 50): DbAdminAuditLog[] {
   const db = loadDatabase();
   if (!Array.isArray(db.admin_audit_logs)) return [];
   return structuredClone(db.admin_audit_logs.slice(-limit).reverse());
+}
+
+export function recordAdminAuditLog(options: {
+  adminId: string;
+  adminEmail: string;
+  action: string;
+  targetCourseId?: string;
+  targetCourseSlug?: string;
+  summary: string;
+}): void {
+  executeMutation((db) => {
+    if (!Array.isArray(db.admin_audit_logs)) {
+      db.admin_audit_logs = [];
+    }
+    db.admin_audit_logs.push({
+      id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      admin_id: options.adminId,
+      admin_email: options.adminEmail,
+      action: options.action,
+      target_course_id: String(options.targetCourseId || ""),
+      target_course_slug: String(options.targetCourseSlug || ""),
+      summary: options.summary,
+      created_at: new Date().toISOString(),
+    });
+    if (db.admin_audit_logs.length > 200) {
+      db.admin_audit_logs = db.admin_audit_logs.slice(-200);
+    }
+  });
 }
 
 export function getAllUsersForAdmin(): Array<{

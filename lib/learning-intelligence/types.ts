@@ -1,5 +1,9 @@
 import type { CourseCategory, CourseLevel } from "../types";
 import type { LearningEventType } from "../db";
+import type {
+  StudentDrillIntelligenceSummary,
+  AdaptiveDrillRecommendation,
+} from "../drill-types";
 
 export type LearningDataStatus = "NO_DATA" | "INSUFFICIENT_DATA" | "AVAILABLE";
 
@@ -189,6 +193,8 @@ export interface StudentLearningDashboardReport {
   }>;
   continuity: StudentLearningContinuityMetrics;
   quizIntelligence: StudentQuizIntelligenceSummary;
+  drillIntelligence?: StudentDrillIntelligenceSummary;
+  drillRecommendations?: AdaptiveDrillRecommendation[];
 }
 
 // ── Admin Education Intelligence Contracts ─────────────────────────

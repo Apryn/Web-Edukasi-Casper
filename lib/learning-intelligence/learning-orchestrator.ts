@@ -39,6 +39,9 @@ import {
   buildAdminEducationIntelligence,
   parseAdminTimePeriod,
 } from "./admin-education-intelligence";
+import { getAllDrills, getAllSubmissionsForUser } from "../drill-storage";
+import { computeStudentDrillIntelligence } from "../drill-mastery-engine";
+import { generateAdaptiveDrillRecommendations } from "../drill-recommendation-engine";
 
 export interface LearningApiResult<T> {
   ok: boolean;
@@ -136,6 +139,22 @@ export function buildStudentLearningDashboardForUser(
     generatedAtIso: generatedAt,
   });
 
+  // Task 5.5: Practical Drill Intelligence & Adaptive Recommendations (Modular, Non-Breaking)
+  const publishedDrills = getAllDrills({ status: "PUBLISHED" });
+  const drillSubmissions = getAllSubmissionsForUser(userId);
+  const drillIntelligence = computeStudentDrillIntelligence(
+    userId,
+    publishedDrills,
+    drillSubmissions
+  );
+  const drillRecommendations = generateAdaptiveDrillRecommendations({
+    userId,
+    publishedDrills,
+    submissions: drillSubmissions,
+    intelligenceSummary: drillIntelligence,
+    dismissals,
+  });
+
   return {
     userId,
     generatedAt,
@@ -147,6 +166,8 @@ export function buildStudentLearningDashboardForUser(
     archivedCourseHistory: courseMetrics.archivedCourseHistory,
     continuity,
     quizIntelligence,
+    drillIntelligence,
+    drillRecommendations,
   };
 }
 

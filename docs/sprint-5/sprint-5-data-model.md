@@ -1,35 +1,28 @@
 # SIGNAL CASPER ACADEMY — SPRINT 5
-# DATA MODEL & SCHEMA SPECIFICATION
+# DATA MODEL & SCHEMA SPECIFICATION — REVISION 3
 
 **Title:** Practical Drill & Trade Preparation Data Model  
 **Sprint:** Sprint 5  
-**Document Version:** 1.0.0  
-**Status:** PLANNING ONLY — NO IMPLEMENTATION  
-**Date:** November 10, 2026  
+**Document Version:** 3.0.0  
+**Status:** PLANNING ONLY — REVISED POST PRODUCT OWNER CONSISTENCY REVIEW (REV 3)  
+**Baseline:** Sprint 1–4 Accepted & Frozen  
+**Date:** November 12, 2026  
 
 ---
 
-## 1. SCHEMA OVERVIEW & INTEGRATION
+## 1. SCHEMA SEPARATION: IMMUTABLE HISTORY VS DERIVED PROGRESS
 
-The Sprint 5 data model extends `DatabaseSchema` in [`lib/db.ts`](file:///d:/Developer/Web-Edukasi-Casper-main/lib/db.ts) by introducing three new first-class collections:
-1. `drills`: Authoritative repository of practical chart drill cases and rubrics.
-2. `drill_submissions`: Immutable historical record of student drill evaluations.
-3. `trade_preparation_checklists`: Student pre-session readiness logs.
+A critical architectural requirement established in the Final Architecture Review is the **complete separation between raw immutable attempt history and derived student progress summaries**.
 
-All collections reside within `data/academy.json`, persisted via the proven `writeAtomicFileWithBackup` engine with zero external database dependencies.
+1. **`drill_submissions` (Immutable SSOT)**: Every submission represents a permanent, historical event that is never mutated, updated, or recalculated.
+2. **`StudentDrillSummary` (Derived Projection)**: Computed dynamically on request from the submission history (or cached in memory).
 
 ```mermaid
 erDiagram
-    USERS ||--o{ DRILL_SUBMISSIONS : "submits"
+    USERS ||--o{ DRILL_SUBMISSIONS : "submits (Immutable SSOT)"
     USERS ||--o{ TRADE_PREPARATION_CHECKLISTS : "logs"
-    COURSES ||--o{ DRILLS : "associates"
-    DRILLS ||--o{ DRILL_SUBMISSIONS : "evaluates"
-
-    USERS {
-        string id PK
-        string email
-        string role
-    }
+    COURSES ||--o{ DRILLS : "curates"
+    DRILLS ||--o{ DRILL_SUBMISSIONS : "grades (Version-Locked)"
 
     DRILLS {
         string id PK
@@ -39,12 +32,19 @@ erDiagram
         string slug
         string drill_type
         string status
-        int version
+        int drill_version
+        int rubric_version
         string instrument
         string timeframe
-        string chart_asset_url
-        string solution_overlay_url
-        string prompt
+        string data_period
+        string data_source
+        string classification
+        string timezone
+        string transformation_notes
+        json price_bounds
+        string draft_chart_path
+        string published_chart_url
+        string solution_overlay_path
         json model_answer
         json rubric
         string created_at
@@ -56,8 +56,14 @@ erDiagram
         string user_id FK
         string drill_id FK
         int drill_version
+        int rubric_version
+        int attempt_number
+        string idempotency_key
         int score
-        boolean is_passed
+        int invalidation_score
+        boolean safety_gate_passed
+        string evaluation_status
+        json rubric_snapshot
         json answers
         json evaluation_breakdown
         string debrief_text
@@ -73,7 +79,7 @@ erDiagram
         boolean setup_confirmed
         boolean risk_defined
         boolean execution_planned
-        string risk_percentage
+        number risk_percentage
         string general_notes
         string advisory_verdict
         string created_at
@@ -95,12 +101,18 @@ export type DrillType =
 
 export type DrillPublicationStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 
+export interface ChartPriceBounds {
+  minPrice: number; // Lowest price visible on chart Y-axis
+  maxPrice: number; // Highest price visible on chart Y-axis
+  decimals: number; // e.g. 2 for Gold (XAUUSD), 0 for JPY
+}
+
 export interface DrillModelAnswer {
-  // Market Direction
   expectedBias: "BULLISH" | "BEARISH" | "SIDEWAYS_NEUTRAL";
   isNoTradeValid: boolean;
+  validNoTradeReasons?: string[]; // e.g. ["LOW_RISK_REWARD", "MAJOR_NEWS_IMMINENT", "CHOPPY_RANGE"]
   
-  // Numerical Zones (for Gold / Forex)
+  // Numerical Zones
   entryZone: {
     min: number;
     max: number;
@@ -109,30 +121,30 @@ export interface DrillModelAnswer {
   };
   invalidationPrice: {
     ideal: number;
-    tolerance: number; // e.g. ±1.00
+    tolerance: number; // e.g. ±0.80
   };
   targetPrice: {
     ideal: number;
-    tolerance: number; // e.g. ±2.00
+    tolerance: number; // e.g. ±2.50
   };
   minimumRiskRewardRatio: number; // e.g. 2.0 (1:2)
   
-  // Structural tags & reasoning
-  requiredConfirmations: string[]; // e.g. ["LIQUIDITY_SWEEP", "M15_CHOC", "FVG_TAP"]
-  validRationaleKeywords: string[]; // e.g. ["discount zone", "equal highs taken", "supply rejection"]
-  noTradeReasons?: string[]; // e.g. ["RISK_REWARD_TOO_LOW", "MAJOR_NEWS_IMMINENT"]
+  // Structural confirmations & keywords
+  requiredConfirmations: string[];
+  validRationaleKeywords: string[];
 }
 
 export interface DrillRubricCriterion {
-  id: string;
+  id: "CRIT_BIAS" | "CRIT_ENTRY" | "CRIT_INVALID" | "CRIT_RR" | "CRIT_CONFIRM";
   name: string;
-  weight: number; // e.g. 25 (out of 100)
+  weight: number; // Must sum exactly to 100 (20, 25, 25, 15, 15)
+  minimumPassPoints?: number; // 18 for CRIT_INVALID
   description: string;
-  evaluationMethod: "EXACT_MATCH" | "NUMERICAL_TOLERANCE" | "KEYWORD_SET" | "LOGICAL_CONDITION";
 }
 
 export interface DrillRubric {
-  passingScore: number; // Default: 70
+  overallPassingScore: number; // 70
+  invalidationSafetyGatePoints: number; // 18 out of 25
   criteria: DrillRubricCriterion[];
 }
 
@@ -141,28 +153,35 @@ export interface DbDrillCase {
   course_id: string; // "course_xauusd_basic"
   course_slug: string; // "xauusd-basic"
   lesson_id: string; // "c1-market-structure"
-  title: string; // "Studi Kasus 01: Identifikasi Liquidity Sweep H1"
-  slug: string; // "xauusd-liquidity-sweep-h1"
+  title: string;
+  slug: string;
   drill_type: DrillType;
   status: DrillPublicationStatus;
-  version: number; // Incremented on rubric/model answer update
   
-  // Provenance & Market Context
+  // Versioning Semantics
+  drill_version: number; // Increments when model answer or price bounds change
+  rubric_version: number; // Increments when weights or criteria change
+  
+  // Provenance & Transparency
   instrument: string; // "XAUUSD"
   timeframe: string; // "H1"
-  data_source: string; // "Historical Gold Futures Data"
-  historical_date_range: string; // "2024-10-14 08:00 - 16:00 UTC"
-  verification_status: "VERIFIED_BY_ACADEMY_DESK";
+  data_period: string; // "2024-10-14 08:00 - 16:00 UTC"
+  data_source: string; // "Institutional Tick History (Curated)"
+  classification: "HISTORICAL_MARKET" | "SYNTHETIC_SIMULATION";
+  timezone: string; // "UTC"
+  transformation_notes: string; // e.g. "Asian session high highlighted; candle bodies unmodified"
+  price_bounds: ChartPriceBounds;
   
-  // Visual Media
-  chart_asset_url: string; // "/drills/charts/drill_xauusd_01/case.webp"
-  solution_overlay_url: string; // "/drills/charts/drill_xauusd_01/solution.webp"
+  // Segregated Media Storage Paths (PNG & WebP only, zero SVG)
+  draft_chart_path: string; // "data/drills/drafts/[id]/case_v1.webp" (Private)
+  published_chart_url: string; // "/drills/published/[id]/v1/case.webp" (Public static)
+  solution_overlay_path: string; // "data/drills/solutions/[id]/solution_v1.webp" (Private)
   
-  // Educational Prompts
+  // Prompts & Instructions
   context_prompt: string;
   instructions: string[];
   
-  // Server-Private Grading Secrets
+  // Private Grading Secrets
   model_answer: DrillModelAnswer;
   rubric: DrillRubric;
   instructor_debrief: string;
@@ -172,7 +191,9 @@ export interface DbDrillCase {
 }
 ```
 
-### 2.2 Collection: `drill_submissions`
+---
+
+### 2.2 Collection: `drill_submissions` (Permanent Immutable SSOT)
 
 ```typescript
 export interface StudentDrillAnswer {
@@ -185,12 +206,18 @@ export interface StudentDrillAnswer {
   targetPrice?: number;
   calculatedRiskReward?: number;
   
+  clickedCoordinates?: {
+    entry?: { x: number; y: number };
+    invalidation?: { x: number; y: number };
+    target?: { x: number; y: number };
+  };
+  
   selectedConfirmations: string[];
   rationaleText: string;
 }
 
 export interface CriterionEvaluationResult {
-  criterionId: string;
+  criterionId: "CRIT_BIAS" | "CRIT_ENTRY" | "CRIT_INVALID" | "CRIT_RR" | "CRIT_CONFIRM";
   criterionName: string;
   pointsPossible: number;
   pointsEarned: number;
@@ -202,9 +229,17 @@ export interface DbDrillSubmission {
   id: string; // "sub_drill_1731234567_abc123"
   user_id: string;
   drill_id: string;
-  drill_version: number;
+  drill_version: number; // Locked drill version at evaluation time
+  rubric_version: number; // Locked rubric version at evaluation time
+  attempt_number: number; // Atomic 1, 2, 3...
+  idempotency_key: string; // Client UUID preventing double-submit
+  
   score: number; // 0 - 100
-  is_passed: boolean;
+  invalidation_score: number; // 0 - 25
+  safety_gate_passed: boolean; // true if invalidation_score >= 18
+  evaluation_status: "PASSED" | "FAILED_SAFETY_GATE" | "FAILED";
+  
+  rubric_snapshot: DrillRubric; // Frozen immutable rubric snapshot
   answers: string; // Serialized StudentDrillAnswer
   evaluation_breakdown: string; // Serialized CriterionEvaluationResult[]
   debrief_text: string;
@@ -212,7 +247,62 @@ export interface DbDrillSubmission {
 }
 ```
 
-### 2.3 Collection: `trade_preparation_checklists`
+---
+
+### 2.3 Derived Student Progress Summary (Computed from History)
+
+This summary is **never saved as mutating fields inside raw submissions**. It is computed dynamically via `computeStudentDrillSummary(submissions)`:
+
+```typescript
+export interface StudentDrillSummary {
+  userId: string;
+  drillId: string;
+  attemptsCount: number;
+  firstScore: number;
+  firstAttemptPassed: boolean;
+  latestScore: number;
+  bestScore: number;
+  isPassed: boolean;
+  safetyGateMet: boolean;
+  firstAttemptAt: string;
+  lastAttemptAt: string;
+}
+
+export function computeStudentDrillSummary(
+  userId: string,
+  drillId: string,
+  submissions: DbDrillSubmission[]
+): StudentDrillSummary | null {
+  const userSubs = submissions
+    .filter((s) => s.user_id === userId && s.drill_id === drillId)
+    .sort((a, b) => a.attempt_number - b.attempt_number);
+
+  if (userSubs.length === 0) return null;
+
+  const first = userSubs[0];
+  const latest = userSubs[userSubs.length - 1];
+  const passedSubs = userSubs.filter((s) => s.evaluation_status === "PASSED");
+  const best = userSubs.reduce((max, s) => (s.score > max.score ? s : max), first);
+
+  return {
+    userId,
+    drillId,
+    attemptsCount: userSubs.length,
+    firstScore: first.score,
+    firstAttemptPassed: first.evaluation_status === "PASSED",
+    latestScore: latest.score,
+    bestScore: best.score,
+    isPassed: passedSubs.length > 0,
+    safetyGateMet: userSubs.some((s) => s.safety_gate_passed),
+    firstAttemptAt: first.created_at,
+    lastAttemptAt: latest.created_at,
+  };
+}
+```
+
+---
+
+### 2.4 Collection: `trade_preparation_checklists`
 
 ```typescript
 export interface DbTradePreparationChecklist {
@@ -233,15 +323,13 @@ export interface DbTradePreparationChecklist {
 
 ---
 
-## 3. SAFE MIGRATION & BACKWARD COMPATIBILITY
+## 3. SAFE BACKWARD-COMPATIBLE MIGRATION
 
-To ensure existing data in `data/academy.json` is preserved without mutation errors:
-
+When the application boots, `lib/db.ts` executes `migrateDatabaseSchemaV5` on `loadDatabase()`:
 ```typescript
 export function migrateDatabaseSchemaV5(rawDb: DatabaseSchema): DatabaseSchema {
   const db = { ...rawDb };
   
-  // Backward-compatible collection initializers
   if (!Array.isArray(db.drills)) {
     db.drills = [];
   }
@@ -255,7 +343,5 @@ export function migrateDatabaseSchemaV5(rawDb: DatabaseSchema): DatabaseSchema {
   return db;
 }
 ```
-
-* **Zero-Touch on Existing Tables**: `users`, `course_progress`, `quiz_submissions`, `learning_events`, and `admin_audit_logs` are left untouched.
-* **Preservation**: The atomic migration function executes transparently during initial load if keys are absent, guaranteeing 100% backward compatibility.
-
+* **Strict Non-Destructive Invariant**: Zero changes made to existing `users`, `course_progress`, `quiz_submissions`, or `learning_events`.
+* **Zero Base64 in Database**: Storage holds only clean string metadata and file paths.

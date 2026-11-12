@@ -1,17 +1,18 @@
 # SIGNAL CASPER ACADEMY — SPRINT 5
-# SYSTEM ARCHITECTURE & INTEGRATION SPECIFICATION
+# SYSTEM ARCHITECTURE & INTEGRATION SPECIFICATION — REVISION 3
 
 **Title:** Practical Learning & Interactive Drill Engine Architecture  
 **Sprint:** Sprint 5  
-**Document Version:** 1.0.0  
-**Status:** PLANNING ONLY — NO IMPLEMENTATION  
-**Date:** November 10, 2026  
+**Document Version:** 3.0.0  
+**Status:** PLANNING ONLY — REVISED POST PRODUCT OWNER CONSISTENCY REVIEW (REV 3)  
+**Baseline:** Sprint 1–4 Accepted & Frozen  
+**Date:** November 12, 2026  
 
 ---
 
 ## 1. HIGH-LEVEL ARCHITECTURAL OVERVIEW
 
-The Practical Drill Engine is architected as an educational simulation layer that bridges the **Course Curriculum (Sprint 2)** and the **Learning Intelligence Engine (Sprint 4)**. It operates in strict isolation from the **Student Trading Journal (Sprint 3)** to maintain clear domain boundaries and prevent data contamination.
+The Practical Drill Engine bridges theoretical curriculum (Sprint 2) with practical evaluation and adaptive intelligence (Sprint 4). It is architected with strict domain boundaries, segregating learning simulations from the private trading journal (Sprint 3) and enforcing server-side safety gates and concurrency serialization.
 
 ```mermaid
 flowchart TD
@@ -19,162 +20,199 @@ flowchart TD
         UI_Student["Student Drill Workspace\n(/belajar/drill/[id])"]
         UI_Checklist["Trade Preparation Checklist\n(/dashboard/checklist)"]
         UI_Admin["Admin Drill Builder\n(/admin/drills)"]
-        UI_Chart["Interactive Chart Viewer\n(SVG / Pan-Zoom Canvas)"]
+        UI_Chart["Scoped Chart Viewer\n(Pan, Zoom, Crosshair, Level Picker)"]
     end
 
-    subgraph Security ["Security & Auth Boundary"]
-        MW["Next.js Route Middleware\n(Cookie Session & Role Check)"]
-        Sanitizer["Payload Sanitizer\n(Strip Answer Keys & Rubrics)"]
+    subgraph SecurityGate ["Security & Sanitization Boundary"]
+        MW["Auth Middleware & Session Guard\n(lib/server-auth.ts)"]
+        Sanitizer["Payload Sanitizer\n(Strips modelAnswer, rubric, solution)"]
+        IdempotencyGuard["Idempotency Key Verifier\n(Deduplicates Network Retries)"]
+        ImageValidator["Multi-Layer Image Validator\n(Header Bytes, Dims ≤3840x2160, Decode Check)"]
     end
 
     subgraph API ["Serverless API Route Handlers"]
-        API_DrillStudent["GET /api/drills/[id]\n(Sanitized Drill Case)"]
-        API_DrillSubmit["POST /api/drills/[id]/submit\n(Deterministic Evaluation)"]
-        API_Checklist["POST /api/learning/checklist\n(Save Routine Audit)"]
-        API_DrillAdmin["GET/POST/PUT /api/admin/drills\n(CRUD & Rubric Test)"]
-        API_Assets["POST /api/admin/assets/chart\n(Secure SVG/Image Store)"]
+        API_DrillStudent["GET /api/drills/[id]\n(Sanitized Case Study)"]
+        API_DrillSubmit["POST /api/drills/[id]/submit\n(Deterministic Evaluation + Safety Gate)"]
+        API_DrillSolution["GET /api/drills/[id]/solution\n(Authenticated Post-Submission Overlay)"]
+        API_Checklist["POST /api/learning/checklist\n(Pre-Session Readiness Log)"]
+        API_DrillAdmin["GET/POST/PUT /api/admin/drills\n(CRUD, Versioning & Dry-run Sim)"]
+        API_ChartUpload["POST /api/admin/drills/[id]/assets\n(Segregated Image Storage)"]
     end
 
-    subgraph Engines ["Core Domain Logic & Engines"]
-        EvalEngine["Deterministic Rubric Evaluator\n(lib/drill-evaluation-engine.ts)"]
-        DrillService["Drill Case Management Service\n(lib/drill-service.ts)"]
-        LearnOrch["Learning Intelligence Orchestrator\n(lib/learning-intelligence/)"]
+    subgraph ConcurrencyLock ["Concurrency Control"]
+        DrillMutex["Per-User Drill Submission Mutex\n(Serializes Read-Calculate-Write)"]
     end
 
-    subgraph Persistence ["Storage Layer (Zero-Corruption Atomic File System)"]
-        DB["data/academy.json\n(drills, drill_submissions, checklist_logs)"]
-        Backups["data/backups/\n(Rotating Snapshots)"]
-        Assets["public/drills/charts/\n(Sanitized Chart Images)"]
+    subgraph Engines ["Core Domain Logic"]
+        EvalEngine["Deterministic Rubric Engine\n(lib/drill-evaluation-engine.ts)\n- 5 Weighted Criteria\n- Invalidation Safety Gate (≥18/25)\n- Contextual NO_TRADE Credit\n- Symmetric Half-Up Rounding"]
+        DrillService["Drill Service & Versioning\n(lib/drill-service.ts)"]
+        LearnOrch["Learning Intelligence Orchestrator\n(lib/learning-intelligence/)\n- SSOT: drill_submissions\n- Telemetry: learning_events (FIFO 10k)\n- Distinct Drill Mastery Pathway"]
     end
 
-    UI_Student --> MW --> API_DrillStudent
-    API_DrillStudent --> Sanitizer --> UI_Student
-    UI_Student --> MW --> API_DrillSubmit
-    API_DrillSubmit --> EvalEngine
+    subgraph Storage ["Storage Layer & Asset Segregation"]
+        DB["data/academy.json\n(drills, drill_submissions [SSOT], checklists)"]
+        DraftAssets["data/drills/drafts/[id]/\n(Private / Non-public)"]
+        SolutionAssets["data/drills/solutions/[id]/\n(Private / Post-Submission Only)"]
+        PublishedAssets["public/drills/published/[id]/v[ver]/\n(Clean Static Chart)"]
+    end
+
+    UI_Student --> MW --> API_DrillStudent --> Sanitizer --> UI_Student
+    UI_Student --> MW --> IdempotencyGuard --> DrillMutex --> API_DrillSubmit --> EvalEngine
+    EvalEngine --> DrillService --> DB
     EvalEngine --> LearnOrch
     API_DrillSubmit --> DB
     
+    UI_Student -.->|Post-Submission Request| API_DrillSolution --> SolutionAssets
+
     UI_Checklist --> MW --> API_Checklist --> DB
 
     UI_Admin --> MW --> API_DrillAdmin --> DrillService --> DB
-    UI_Admin --> MW --> API_Assets --> Assets
+    UI_Admin --> MW --> API_ChartUpload --> ImageValidator
+    ImageValidator --> DraftAssets
+    ImageValidator --> SolutionAssets
+    DrillService -.->|On Publish| PublishedAssets
 ```
 
 ---
 
-## 2. COMPONENT DECOMPOSITION
+## 2. CONCURRENCY SERIALIZATION & IDEMPOTENCY ARCHITECTURE
 
-### 2.1 Client Components (Frontend)
-1. **`InteractiveChartViewer.tsx`**:
-   - Zero-dependency interactive viewer supporting pan, zoom, coordinate crosshair, and structural price level overlay.
-   - Built with pure SVG/Canvas and CSS transform matrix (`touch-action: none; cursor: crosshair;`).
-   - Renders baseline clean chart during the drill; renders comparison solution overlay after submission.
-2. **`StudentDrillWorkspace.tsx`**:
-   - Manages drill state: problem context, prompt questions, interactive input fields (Bias selector, Entry price, Invalidation price, Target price, R:R live calculator, Setup confirmation badges, and Trade Rationale textarea).
-   - Handles `NO_TRADE` mode toggle: gracefully collapses Entry/SL/TP fields and presents structured invalidation rationale questions.
-3. **`DrillEvaluationDebrief.tsx`**:
-   - Displays evaluation results: overall percentage score, earned badges, criterion-by-criterion rubric scoring breakdown, and instructor debrief text.
-4. **`TradePrepChecklistWorkspace.tsx`**:
-   - 5-pillar questionnaire assessing psychological calm, risk management boundaries, and market calendar awareness. Generates immediate readiness diagnosis.
-5. **`AdminDrillBuilderWorkspace.tsx`**:
-   - Admin GUI for drafting drills, uploading chart assets, setting price tolerances, configuring scoring rubrics, and executing mock evaluations.
+In a single-file JSON database (`data/academy.json`), concurrent client requests risk race conditions during read-modify-write cycles and duplicate attempt increments.
 
-### 2.2 Server Services & Route Handlers (Backend)
-1. **`lib/drill-evaluation-engine.ts`**:
-   - Pure, deterministic evaluation functions.
-   - Takes `studentSubmission` and `drillModelAnswer` with `rubricRules`, computing the score per criterion with explicit tolerance checking.
-   - Generates contextual explanation strings explaining the gap between submitted values and institutional standards.
-2. **`lib/drill-service.ts`**:
-   - Handles drill CRUD, retrieval, and payload sanitization.
-   - Functions: `getPublishedDrillForStudent(id)`, `getAllDrillsForAdmin()`, `saveDrillCase(caseData, adminId)`, `recordDrillSubmission(subData)`.
-3. **`lib/checklist-service.ts`**:
-   - Validates and stores pre-session checklists in `data/academy.json`.
+### 2.1 Per-User Drill Mutex Pattern
+All submissions for a given `(userId, drillId)` tuple are routed through an in-memory queue:
+
+```typescript
+// Concurrency mutex per user and drill
+const submissionMutexMap = new Map<string, Promise<void>>();
+
+export async function withSubmissionLock<T>(
+  userId: string,
+  drillId: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  const lockKey = `${userId}::${drillId}`;
+  const previousLock = submissionMutexMap.get(lockKey) || Promise.resolve();
+
+  let releaseLock: () => void;
+  const currentLock = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+
+  submissionMutexMap.set(lockKey, currentLock);
+
+  try {
+    await previousLock;
+    return await operation();
+  } finally {
+    releaseLock!();
+    if (submissionMutexMap.get(lockKey) === currentLock) {
+      submissionMutexMap.delete(lockKey);
+    }
+  }
+}
+```
+
+### 2.2 Atomic Attempt Numbering
+Within the mutex lock:
+1. Load latest database state from disk/cache.
+2. Filter `drill_submissions` for `userId` and `drillId`.
+3. Compute `nextAttemptNumber = existingAttempts.length + 1`.
+4. Run deterministic evaluation and compute scores.
+5. Create immutable submission record with `attempt_number: nextAttemptNumber`.
+6. Atomic write to disk using `writeAtomicFileWithBackup`.
+
+### 2.3 Idempotency Key Handling
+1. Client generates a unique UUID `Idempotency-Key: <uuid>` on submission.
+2. The server checks if `idempotency_key` exists in recent submissions (within 24 hours).
+3. **If duplicate detected**: Server returns the exact cached evaluation payload with HTTP `200 OK` and header `X-Cache-Lookup: HIT-IDEMPOTENT`, without incrementing `attempt_number` or appending duplicate records.
+4. **If new key**: Evaluates normally and saves `idempotency_key` with the submission record.
 
 ---
 
-## 3. INTEGRATION WITH LEARNING INTELLIGENCE (SPRINT 4)
+## 3. ASSET STORAGE SEGREGATION & MULTI-LAYER IMAGE VALIDATION
 
-To uphold the Single Source of Truth (SSOT) principle and prevent architectural fragmentation, the Practical Drill Engine connects to Sprint 4 through standardized telemetry and normalization hooks:
+```
+data/
+ ├── academy.json                          <-- DB SSOT
+ └── drills/
+      ├── drafts/                          <-- PRIVATE (Admin Only)
+      │    └── [drill-id]/
+      │         └── case_v1.webp
+      └── solutions/                       <-- PRIVATE (Authenticated Post-Submission Only)
+           └── [drill-id]/
+                └── solution_v1.webp
+
+public/
+ └── drills/
+      └── published/                       <-- STATIC PUBLIC (Clean Chart Only)
+           └── [drill-id]/
+                └── v1/
+                     └── case.webp         <-- No annotations, no answer keys
+```
+
+### 3.1 Multi-Layer Image Validation Pipeline
+1. **Format Whitelist**: Only `.png` and `.webp` are accepted. SVG is rejected immediately.
+2. **Magic Bytes Inspection**:
+   - PNG: `89 50 4E 47 0D 0A 1A 0A`
+   - WebP: `52 49 46 46` ... `57 45 42 50`
+3. **Structural Chunk & Dimension Parsing**:
+   - Parses the IHDR chunk for PNG or VP8/VP8L/VP8X header for WebP to read width and height.
+   - Rejects images exceeding $3840\text{px}$ width or $2160\text{px}$ height.
+   - Rejects images exceeding $8,294,400$ total pixels (prevents decompression bomb attacks).
+   - Rejects files larger than $2.5\text{MB}$.
+4. **Server-Generated Filenames**:
+   Files are written to disk using UUIDs generated on the server (`crypto.randomUUID() + ".webp"`). No user-supplied filenames or paths are ever used on disk.
+
+---
+
+## 4. DISTINCT DRILL MASTERY EVIDENCE MODEL
+
+In Sprint 4, topic mastery was computed from MCQ quizzes. In Sprint 5, practical mastery is evaluated with strict multi-evidence rules:
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor Student
-    participant Browser as Student Browser
-    participant API as API Handler (/api/drills/[id]/submit)
-    participant Eval as Drill Evaluation Engine
-    participant DB as Database (data/academy.json)
-    participant Telemetry as Telemetry Event Pipeline
-    participant Intel as Recommendation Engine
-
-    Student->>Browser: Submits Decision Drill
-    Browser->>API: POST submission payload (Bias, Entry, SL, TP, Reasoning)
-    API->>Eval: evaluateDrillSubmission(submission, modelAnswer, rubric)
-    Eval-->>API: Returns DrillEvaluationResult (Score, CriteriaBreakdown, Debrief)
-    API->>DB: Atomic append to drill_submissions table
-    API->>Telemetry: emitLearningEvent("DRILL_SUBMITTED", { score, courseId, lessonId })
-    Telemetry->>DB: Append to telemetry_events (FIFO 10,000 Ring Buffer)
-    Telemetry->>Intel: Invalidate & refresh student topic mastery cache
-    API-->>Browser: HTTP 200 with complete Evaluation Result & Debrief
+graph TD
+    Start[Topic Mastery Check] --> QuizCheck{Quiz Passed\nScore >= 70%?}
+    QuizCheck -->|No| NeedsPractice[NEEDS_PRACTICE]
+    QuizCheck -->|Yes| DrillCheck{Drill Evidence Check}
+    
+    DrillCheck --> PathwayA{Pathway A:\nAttempt 1 on Any Drill\nScore >= 80% & SL >= 20?}
+    PathwayA -->|Yes| Mastered[MASTERED]
+    PathwayA -->|No| PathwayB{Pathway B:\n>= 2 Distinct Drills Passed\nBoth Score >= 70% & SL >= 18?}
+    
+    PathwayB -->|Yes| Mastered
+    PathwayB -->|No| Developing[DEVELOPING]
 ```
 
-### 3.1 Telemetry Event Expansion
-In `lib/db.ts`, `LearningEventType` is extended cleanly:
-```typescript
-export type LearningEventType =
-  | "COURSE_STARTED"
-  | "LESSON_STARTED"
-  | "LESSON_COMPLETED"
-  | "QUIZ_SUBMITTED"
-  | "COURSE_COMPLETED"
-  | "DRILL_SUBMITTED"; // New Sprint 5 event
-```
-
-### 3.2 Topic Mastery Formula Enrichment
-In Sprint 4, topic mastery was computed solely from lesson completion and quiz scores. In Sprint 5, topic mastery incorporates practical competency:
-* **`NEEDS_PRACTICE`**: Drill attempted with score $< 70\%$ OR quiz failed.
-* **`DEVELOPING`**: Quiz passed ($\ge 70\%$), but drill not yet completed.
-* **`MASTERED`**: Both quiz passed ($\ge 70\%$) AND drill passed ($\ge 70\%$) on the corresponding module topic.
-
-### 3.3 Recommendation Engine Expansion
-New recommendation triggers are added to `lib/learning-intelligence/recommendation-engine.ts`:
-* **`PRACTICE_DRILL` (Priority 88)**: Triggered when a student completes all theoretical lessons in a module and has a practical drill waiting.
-* **`RETRY_DRILL` (Priority 94)**: Triggered when a student fails a practical drill ($< 70\%$), providing a direct CTA to review the case or re-attempt.
+### Strict Mastery Rules:
+1. **Distinct Drill IDs Required**: Repeating the same `drill_id` 10 times and passing twice produces only **one** source of evidence. It cannot fulfill Pathway B.
+2. **Safety Gate Mandatory**: A drill passed with 75% total but $< 18/25$ on Invalidation fails the safety gate and cannot be used as mastery evidence.
+3. **Drill Version Locking**: A student who earned mastery on Version 1 retains their historical mastery status even if the instructor publishes Version 2, unless the course undergoes an administrative syllabus deprecation audit.
 
 ---
 
-## 4. SECURITY BOUNDARIES & DATA SANITIZATION
+## 5. CONTEXTUAL NO-TRADE EVALUATION IN ARCHITECTURE
 
 ```
-[ UNTRUSTED CLIENT ]
-        │
-        ▼ (GET /api/drills/case-xauusd-01)
+[ Student selects NO_TRADE Stance ]
+                  │
+                  ▼
 ┌────────────────────────────────────────────────────────┐
-│ API ROUTE: app/api/drills/[id]/route.ts                │
+│ EVALUATION ENGINE (lib/drill-evaluation-engine.ts)     │
 │                                                        │
-│ 1. Validate JWT session token (Student)                │
-│ 2. Fetch full drill record from storage                │
-│ 3. Execute sanitizeDrillForStudent(record)             │
-│    ├── RETAINS: id, title, prompt, instrument, chart   │
-│    └── STRIPS: modelAnswer, rubric, solutionOverlay,   │
-│                instructorDebrief, evaluationWeights    │
+│ 1. Check if modelAnswer.isNoTradeValid === true       │
+│    ├── If YES:                                         │
+│    │     CRIT_BIAS: Graded on macro direction (20 Pts) │
+│    │     CRIT_ENTRY: Full Credit (25 Pts) - Withheld   │
+│    │     CRIT_INVALID: Full Credit (25 Pts) - Safety   │
+│    │     CRIT_RR: Full Credit (15 Pts) - Capital Saved │
+│    │     CRIT_CONFIRM: Evaluated on No-Trade Reason   │
+│    │     SAFETY GATE: MET (25 >= 18)                   │
+│    │                                                   │
+│    └── If NO (Forced No-Trade on high-prob setup):     │
+│          CRIT_ENTRY: 0 Pts (Missed execution)          │
+│          CRIT_INVALID: 0 Pts (Unjustified inaction)    │
+│          SAFETY GATE: FAILED (0 < 18)                  │
 └────────────────────────────────────────────────────────┘
-        │
-        ▼ (Returns Sanitized JSON)
-[ STUDENT BROWSER ] ── Zero Answer Key Leakage
 ```
-
-### 4.1 Strict Sanitization Contract
-The server enforces a strict TypeScript transformation `sanitizeDrillForStudent(drill: DbDrillCase): PublicDrillCase` before any data reaches the wire. No client-side hiding, no HTML comment tricks, and no hidden DOM elements.
-
----
-
-## 5. FILE STORAGE & CHART ASSET MANAGEMENT
-
-1. **Asset Directory**: Chart images reside in `public/drills/charts/[drill-id]/`.
-2. **File Format Constraints**:
-   - Formats allowed: `.png`, `.webp`, `.svg`.
-   - Max file size: $2.5\text{ MB}$ per image.
-   - SVG sanitization: SVGs uploaded via admin must be stripped of any `<script>`, `onload`, or foreign object attributes to eliminate Stored XSS vectors.
-3. **No External CDN or S3 Required**: Assets are served statically through Next.js built-in static asset serving, adhering strictly to the zero-external-dependency rule.
-
+In `NO_TRADE` mode, the safety gate evaluates **capital preservation discipline** rather than a numerical stop-loss price, allowing disciplined students to achieve 100/100 without opening phantom trades.
