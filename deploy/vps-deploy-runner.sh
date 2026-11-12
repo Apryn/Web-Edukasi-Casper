@@ -87,6 +87,7 @@ fi
 
 echo "▶ [4/5] Mengambil pembaruan Git terbaru (fast-forward)..."
 cd "$APP_DIR"
+rm -f "$APP_DIR/public/SIGNAL_CASPER_ACADEMY_FITUR_LENGKAP.pdf" 2>/dev/null || true
 git fetch origin main
 git merge --ff-only origin/main
 

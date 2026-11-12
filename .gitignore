@@ -10,5 +10,6 @@ data/*
 !data/.gitkeep
 data-backups/
 *.tsbuildinfo
+public/SIGNAL_CASPER_ACADEMY_FITUR_LENGKAP.pdf
 
 

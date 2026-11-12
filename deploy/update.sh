@@ -230,7 +230,9 @@ if ! git ls-files --error-unmatch data/.gitkeep >/dev/null 2>&1 && [ -e "$DATA_D
     exit 1
 fi
 
-DIRTY_STATUS=$(git status --porcelain -uall | grep -Ev '^\?\? (data/academy\.json|data/academy\.db(\.|-journal)?|data/backups/|data-backups/)' || true)
+rm -f "$APP_DIR/public/SIGNAL_CASPER_ACADEMY_FITUR_LENGKAP.pdf" 2>/dev/null || true
+
+DIRTY_STATUS=$(git status --porcelain -uall | grep -Ev '^\?\? (data/academy\.json|data/academy\.db(\.|-journal)?|data/backups/|data-backups/|public/SIGNAL_CASPER_ACADEMY_FITUR_LENGKAP\.pdf)' || true)
 if [ -n "$DIRTY_STATUS" ]; then
     echo "❌ PERINGATAN: Working tree di VPS memiliki perubahan kode yang tidak aman! Proses dihentikan."
     echo "Temuan file yang berubah / tidak terlacak:"
