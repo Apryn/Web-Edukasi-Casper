@@ -67,6 +67,24 @@ if [ "$DB_STATUS" != "VALID" ]; then
     fi
 else
     echo "▶ [2/5] Database produksi di VPS valid & siap. Mempertahankan data pengguna."
+    if [ -f "/tmp/academy.admin-seed.json" ]; then
+        node -e '
+          const fs = require("fs");
+          try {
+            const vpsDb = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const seedDb = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+            if (!Array.isArray(vpsDb.drills) || vpsDb.drills.length === 0) {
+              if (Array.isArray(seedDb.drills) && seedDb.drills.length > 0) {
+                vpsDb.drills = seedDb.drills;
+                fs.writeFileSync(process.argv[1], JSON.stringify(vpsDb, null, 2), "utf8");
+                console.log("        Sinkronisasi studi kasus drill resmi ke database VPS: BERHASIL.");
+              }
+            }
+          } catch (e) {
+            console.error("        Gagal sinkron drill:", e.message);
+          }
+        ' "$DB_FILE" "/tmp/academy.admin-seed.json" 2>/dev/null || true
+    fi
 fi
 rm -f /tmp/academy.admin-seed.json
 
