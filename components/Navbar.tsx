@@ -67,6 +67,9 @@ export default function Navbar() {
           <Link href="/dashboard" className={isActive("/dashboard") ? "nav-active" : ""}>
             Dashboard
           </Link>
+          <Link href="/dashboard?tab=journal">
+            Trading Journal
+          </Link>
           {user?.role === "ADMIN" && (
             <Link href="/admin" className={isActive("/admin") ? "nav-active" : ""} style={{ color: "var(--cyan)" }}>
               Admin Panel
@@ -105,6 +108,7 @@ export default function Navbar() {
           <Link href="/analisa" onClick={() => setMobileOpen(false)}>Analisa Market</Link>
           <Link href="/belajar" onClick={() => setMobileOpen(false)}>Katalog Kelas</Link>
           <Link href="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard Belajar</Link>
+          <Link href="/dashboard?tab=journal" onClick={() => setMobileOpen(false)}>Trading Journal</Link>
           <Link href="/login" onClick={() => setMobileOpen(false)}>Masuk Akun</Link>
           <Link href="/register" className="mobile-drawer-cta" onClick={() => setMobileOpen(false)}>Daftar Sekarang</Link>
         </div>

@@ -40,6 +40,22 @@ export default function DashboardPage() {
   const [dashboardMode, setDashboardMode] = useState<"learning" | "journal">("learning");
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const checkModeFromUrl = () => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("tab") === "journal" || window.location.hash === "#journal") {
+          setDashboardMode("journal");
+        } else if (params.get("tab") === "learning") {
+          setDashboardMode("learning");
+        }
+      };
+      checkModeFromUrl();
+      window.addEventListener("popstate", checkModeFromUrl);
+      return () => window.removeEventListener("popstate", checkModeFromUrl);
+    }
+  }, []);
+
+  useEffect(() => {
     // 1. Load initial local progress for active session user (if any)
     setProgressMap(getStoredProgress());
 

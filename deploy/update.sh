@@ -280,6 +280,7 @@ if ! npm install --no-audit; then
     npm cache clean --force || true
     npm install --no-audit || rollback_code_only
 fi
+rm -rf .next
 npm run build || rollback_code_only
 git checkout -- package-lock.json next-env.d.ts 2>/dev/null || true
 

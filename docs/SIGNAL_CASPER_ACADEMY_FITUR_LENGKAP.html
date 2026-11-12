@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Panduan & Dokumentasi Fitur Lengkap — Signal Casper Academy</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 18mm 16mm;
+      @bottom-right {
+        content: counter(page);
+      }
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #1e293b;
+      line-height: 1.55;
+      font-size: 11pt;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+    .cover {
+      page-break-after: always;
+      padding-top: 40px;
+      text-align: left;
+    }
+    .brand-tag {
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 9pt;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #0284c7;
+      background: #e0f2fe;
+      border: 1px solid #bae6fd;
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 26pt;
+      font-weight: 800;
+      line-height: 1.2;
+      color: #0f172a;
+      margin: 0 0 10px 0;
+    }
+    .subtitle {
+      font-size: 13pt;
+      color: #475569;
+      margin-bottom: 30px;
+      line-height: 1.4;
+    }
+    .meta-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #0284c7;
+      padding: 16px 20px;
+      border-radius: 6px;
+      margin-bottom: 35px;
+      font-size: 9.5pt;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      row-gap: 8px;
+    }
+    .meta-item strong {
+      color: #0f172a;
+    }
+    .section-title {
+      font-size: 15pt;
+      font-weight: 700;
+      color: #0f172a;
+      border-bottom: 2px solid #0284c7;
+      padding-bottom: 6px;
+      margin-top: 28px;
+      margin-bottom: 14px;
+      page-break-after: avoid;
+    }
+    .section-subtitle {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #0369a1;
+      margin-top: 18px;
+      margin-bottom: 8px;
+      page-break-after: avoid;
+    }
+    p {
+      margin: 0 0 10px 0;
+      text-align: justify;
+    }
+    ul, ol {
+      margin: 0 0 12px 0;
+      padding-left: 20px;
+    }
+    li {
+      margin-bottom: 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px 0;
+      font-size: 9pt;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 7px 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #f1f5f9;
+      color: #0f172a;
+      font-weight: 700;
+    }
+    tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 7.5pt;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: ui-monospace, monospace;
+      text-transform: uppercase;
+    }
+    .badge-primary { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
+    .badge-success { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .badge-warning { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+    .badge-danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+    .feature-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+      page-break-inside: avoid;
+    }
+    .feature-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .feature-title {
+      font-weight: 700;
+      color: #0f172a;
+      font-size: 10.5pt;
+    }
+    .callout {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 10px 14px;
+      margin: 12px 0;
+      font-size: 9pt;
+      border-radius: 0 4px 4px 0;
+    }
+    .callout-title {
+      font-weight: 700;
+      color: #1d4ed8;
+      margin-bottom: 3px;
+    }
+    .page-break {
+      page-break-after: always;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- COVER PAGE -->
+  <div class="cover">
+    <div class="brand-tag">SIGNAL CASPER ACADEMY — DOKUMENTASI SISTEM &amp; FITUR</div>
+    <h1>Buku Panduan &amp; Ikhtisar Fitur Lengkap Platform</h1>
+    <div class="subtitle">Platform Edukasi Trading Kuantitatif, Jurnal Berbasis Metrik Presisi, dan Kecerdasan Belajar Adaptif</div>
+
+    <div class="meta-box">
+      <div class="meta-grid">
+        <div class="meta-item"><strong>Aplikasi:</strong> Signal Casper Academy</div>
+        <div class="meta-item"><strong>Versi Sistem:</strong> Sprint 4 Release (Ready for Sprint 5)</div>
+        <div class="meta-item"><strong>URL Akses VPS:</strong> <a href="http://187.77.156.219:83" style="color: #0284c7; text-decoration: none;">http://187.77.156.219:83</a></div>
+        <div class="meta-item"><strong>Akun Master Admin:</strong> apriyanriyan23@gmail.com</div>
+        <div class="meta-item"><strong>Target Audience:</strong> Trader Siswa, Instruktur / Mentor, &amp; Administrator</div>
+        <div class="meta-item"><strong>Tanggal Publikasi:</strong> 10 November 2026</div>
+      </div>
+    </div>
+
+    <h3 style="color: #0f172a; margin-top: 30px; margin-bottom: 12px;">Daftar Isi Ringkas</h3>
+    <ol style="line-height: 1.8; font-size: 10pt; color: #334155;">
+      <li><strong>Arsitektur Platform &amp; Ikhtisar Portal Terpadu</strong> — Sistem dual-workspace siswa &amp; admin.</li>
+      <li><strong>Kurikulum Akademi &amp; Modul Pembelajaran (C1–C9)</strong> — Silabus lengkap, diagram visual, kuis server.</li>
+      <li><strong>Sistem Sertifikat Resmi &amp; Kredensial Akademik</strong> — Verifikasi kelulusan &amp; generator sertifikat.</li>
+      <li><strong>Student Trading Journal &amp; Quantitative Analytics</strong> — 4 Engine analitik presisi (Core, Drawdown, Time-Series, Slicer).</li>
+      <li><strong>Student Learning Intelligence &amp; Adaptive Learning</strong> — Dashboard cerdas, 7 rekomendasi adaptif, &amp; topic mastery.</li>
+      <li><strong>Panel Kontrol Administrator &amp; Education Intelligence</strong> — Course editor, audit log, drop-off materi, &amp; kohort retensi.</li>
+      <li><strong>Privasi, Keamanan Data, &amp; Aksesibilitas</strong> — Isolasi multi-tenant, zero-knowledge, &amp; disaster recovery.</li>
+    </ol>
+  </div>
+
+  <!-- SECTION 1 -->
+  <div class="section-title">1. Arsitektur Platform &amp; Ikhtisar Portal Terpadu</div>
+  <p>
+    <strong>Signal Casper Academy</strong> adalah platform edukasi trading modern berkinerja tinggi yang menggabungkan tiga pilar utama: <em>Kurikulum Terstruktur</em>, <em>Jurnal Trading Kuantitatif Objektif</em>, dan <em>Kecerdasan Pembelajaran Adaptif (Adaptive Learning Intelligence)</em>. Platform ini dirancang dengan prinsip <strong>Zero Client Trust</strong> (seluruh verifikasi kelulusan, skor kuis, dan kalkulasi risiko dilakukan di server) serta <strong>Strict Privacy Isolation</strong> (data jurnal trading pribadi siswa terpisah sepenuhnya dari pengawasan kurikulum tanpa izin eksplisit).
+  </p>
+
+  <div class="feature-card">
+    <div class="feature-header">
+      <span class="feature-title">Dual Workspace Mode pada Dashboard Siswa</span>
+      <span class="badge badge-primary">Siswa</span>
+    </div>
+    <p>Siswa dapat beralih secara mulus antara dua mode kerja utama hanya dengan satu klik:</p>
+    <ul>
+      <li><strong>Learning Intelligence &amp; Kurikulum:</strong> Memantau progres materi, KPI pembelajaran, rekomendasi adaptif otomatis, streak hari aktif, serta pencapaian sertifikat resmi.</li>
+      <li><strong>Trading Journal &amp; Performance Analytics:</strong> Ruang kerja eksekusi trading untuk mencatat riwayat transaksi, transaksi kas (deposit/withdrawal), evaluasi drawdown real-time, dan audit kebiasaan psikologis.</li>
+    </ul>
+  </div>
+
+  <!-- SECTION 2 -->
+  <div class="section-title">2. Kurikulum Akademi &amp; Modul Pembelajaran (C1–C9)</div>
+  <p>
+    Platform memuat 9 kelas kurikulum komprehensif bawaan pabrik (Canonical Baseline) yang mencakup seluruh spektrum keahlian dari pondasi awal hingga psikologi tingkat lanjut:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 12%;">Kode</th>
+        <th style="width: 32%;">Judul Kursus</th>
+        <th style="width: 18%;">Tingkat / Kategori</th>
+        <th style="width: 38%;">Kompetensi Utama yang Dibangun</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>SC-01</strong></td>
+        <td>Trading Fundamentals</td>
+        <td><span class="badge badge-success">Beginner</span> Foundation</td>
+        <td>Mekanisme lelang order book, spread, slippage, tipe limit vs market order.</td>
+      </tr>
+      <tr>
+        <td><strong>SC-02</strong></td>
+        <td>Candlestick &amp; Price Action</td>
+        <td><span class="badge badge-success">Beginner</span> Technical</td>
+        <td>Anatomi OHLC, momentum body, rejection wick, dan identifikasi zona likuiditas.</td>
+      </tr>
+      <tr>
+        <td><strong>SC-03</strong></td>
+        <td>Market Structure Mastery</td>
+        <td><span class="badge badge-warning">Intermediate</span> Structure</td>
+        <td>HH, HL, LH, LL mekanis, Break of Structure (BOS), Change of Character (CHoCH).</td>
+      </tr>
+      <tr>
+        <td><strong>SC-04</strong></td>
+        <td>Support &amp; Resistance Dynamics</td>
+        <td><span class="badge badge-warning">Intermediate</span> Technical</td>
+        <td>Konsep zona area (bukan garis tunggal), RBS (Resistance Become Support), SBR.</td>
+      </tr>
+      <tr>
+        <td><strong>SC-05</strong></td>
+        <td>Technical Analysis Framework</td>
+        <td><span class="badge badge-warning">Intermediate</span> Technical</td>
+        <td>Penyelarasan multi-timeframe (HTF bias D1/H4 ke trigger entry LTF M15).</td>
+      </tr>
+      <tr>
+        <td><strong>SC-06</strong></td>
+        <td>XAUUSD Market Analysis</td>
+        <td><span class="badge badge-danger">Advanced</span> Specialized</td>
+        <td>Dinamika emas spot, korelasi makro (DXY &amp; US Real Yields), siklus sesi London/NY.</td>
+      </tr>
+      <tr>
+        <td><strong>SC-07</strong></td>
+        <td>Risk Management &amp; Capital</td>
+        <td><span class="badge badge-danger">Advanced</span> Risk Engine</td>
+        <td>Rumus baku position sizing berbasis Stop Loss pip, asimetri RRR &ge; 1:2, circuit breaker.</td>
+      </tr>
+      <tr>
+        <td><strong>SC-08</strong></td>
+        <td>Trading Psychology &amp; Tilt</td>
+        <td><span class="badge badge-danger">Advanced</span> Mindset</td>
+        <td>Memutus spiral emosi (FOMO &amp; revenge trading), penerimaan risiko -1R per transaksi.</td>
+      </tr>
+      <tr>
+        <td><strong>SC-09</strong></td>
+        <td>Trading Journal &amp; Evaluation</td>
+        <td><span class="badge badge-danger">Advanced</span> Analytics</td>
+        <td>Audit proses vs hasil acak, pemisahan good win/loss, rumus expectancy matematis.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="feature-card">
+    <div class="feature-header">
+      <span class="feature-title">Fitur Ruang Kelas Interaktif (Classroom Viewer)</span>
+      <span class="badge badge-primary">E-Learning</span>
+    </div>
+    <ul>
+      <li><strong>Diagram Visual Edukatif:</strong> Diagram vektor SVG bawaan (BOS/CHoCH, Anatomi Candle, Order Book, RBS/SBR, dsb) untuk pemahaman intuitif tanpa perlu gambar eksternal yang lambat.</li>
+      <li><strong>Kuis Evaluasi Server:</strong> Kuis dengan batas kelulusan wajib &ge; 70%. Jawaban diverifikasi langsung di backend tanpa membocorkan kunci jawaban di browser.</li>
+      <li><strong>Pelacak Waktu Nyata:</strong> Setiap kali siswa membuka materi baru, sistem otomatis mencatat aktivitas pembelajaran untuk kalkulasi streak dan rekomendasi belajar.</li>
+    </ul>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- SECTION 3 -->
+  <div class="section-title">3. Sertifikat Resmi Kelulusan &amp; Kredensial ID</div>
+  <p>
+    Setelah siswa menuntaskan 100% materi pada suatu kelas dan <strong>lulus seluruh evaluasi kuis wajib (&ge; 70%)</strong>, sistem secara otomatis menerbitkan <em>Certificate of Academic Completion</em>.
+  </p>
+  <ul>
+    <li><strong>Kredensial ID Unik:</strong> Format baku <code>CASPER-[USER_HASH]-[COURSE_ID]</code> yang dapat diverifikasi oleh admin dan mentor.</li>
+    <li><strong>Dialog &amp; Cetak Langsung:</strong> Tampilan sertifikat modal elegan dengan tombol cetak langsung / ekspor ke PDF (Print to PDF) siap portofolio.</li>
+    <li><strong>Sertifikat Tertunda:</strong> Jika materi telah selesai namun kuis belum lulus, sistem menandai sertifikat sebagai <em>Tertunda</em> dan merekomendasikan siswa untuk mengulang kuis.</li>
+  </ul>
+
+  <!-- SECTION 4 -->
+  <div class="section-title">4. Student Trading Journal &amp; Quantitative Analytics (Sprint 3)</div>
+  <p>
+    Jurnal trading profesional bukan sekadar catatan riwayat transaksi, melainkan laboratorium kuantitatif untuk membuktikan keunggulan strategi (Edge) siswa:
+  </p>
+
+  <div class="feature-card">
+    <div class="feature-header">
+      <span class="feature-title">A. Manajemen Akun Multi-Portofolio</span>
+      <span class="badge badge-primary">Portfolio</span>
+    </div>
+    <p>Mendukung 4 kategori akun: <code>PROP FIRM</code>, <code>LIVE</code>, <code>DEMO</code>, dan <code>PAPER</code>. Siswa dapat berpindah antar akun atau mengarsipkan akun yang sudah tidak aktif.</p>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-header">
+      <span class="feature-title">B. Pencatatan Transaksi &amp; Pemisahan Kas (Cash Transactions)</span>
+      <span class="badge badge-primary">Data Entry</span>
+    </div>
+    <p>
+      Pencatatan Deposit dan Penarikan (Withdrawal) dipisahkan secara ketat dari laba-rugi perdagangan murni. Penyetoran dana tidak akan dianggap sebagai profit, dan penarikan dana tidak akan dianggap sebagai kerugian trading.
+    </p>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-header">
+      <span class="feature-title">C. Empat Mesin Analitik Kuantitatif (Quantitative Analytics Engine)</span>
+      <span class="badge badge-success">Engine Core</span>
+    </div>
+    <ul>
+      <li><strong>Core Metrics Engine:</strong> Menggunakan aritmatika minor-unit <code>BigInt</code> untuk mencegah floating-point drift. Menghitung Net P/L, Win Rate Komprehensif &amp; Decisive, Profit Factor, Average Win/Loss, dan Ekspektansi per transaksi.</li>
+      <li><strong>Drawdown Analytics Engine:</strong> Melacak kurva ekuitas secara presisi, menghitung nominal MDD, persentase MDD nyata (tanpa pemotongan 100% artifisial sehingga kerugian melebihi modal awal tetap terdeteksi), status <code>AVAILABLE</code> / <code>CAPITAL_DEPLETED</code>, dan deteksi siklus pemulihan (recovery).</li>
+      <li><strong>Time-Series Analytics Engine:</strong> Agregasi performa berbasis kalender harian, mingguan (ISO-8601), dan bulanan dengan dukungan timezone IANA (Asia/Jakarta UTC+7) dalam format Sparse maupun Dense.</li>
+      <li><strong>Dimensional Slicer Engine:</strong> Mengiris performa trading ke dalam 10 dimensi analitik: Instrumen Pair, Arah (Long/Short), Sesi Pasar (Asia/London/NY), Kondisi Pasar, Status Emosi, Kesalahan Eksekusi, Timeframe, Setup, Hari dalam Seminggu, dan Tipe Akun.</li>
+    </ul>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-header">
+      <span class="feature-title">D. Kontrol Izin Akses Mentor (Consent &amp; Privacy Control)</span>
+      <span class="badge badge-warning">Zero Trust</span>
+    </div>
+    <p>
+      Siswa memegang kendali penuh atas privasi jurnal mereka. Siswa dapat memberikan izin inspeksi kepada Mentor terdaftar dengan cakupan <code>ANALYTICS_ONLY</code> (hanya metrik agregat) atau <code>FULL_JOURNAL</code> (termasuk rincian transaksi), serta dapat mencabut izin (Revoke) kapan saja secara instan.
+    </p>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- SECTION 5 -->
+  <div class="section-title">5. Student Learning Intelligence &amp; Adaptive Learning (Sprint 4)</div>
+  <p>
+    Dashboard pembelajaran adaptif mengubah data progres pasif menjadi sistem rekomendasi aktif yang memandu siswa mencapai penguasaan kurikulum:
+  </p>
+
+  <div class="feature-card">
+    <div class="feature-header">
+      <span class="feature-title">A. 7 Kategori Rekomendasi Adaptif Berbasis Bukti (Explainable AI)</span>
+      <span class="badge badge-primary">Adaptive Engine</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 28%;">Kategori Rekomendasi</th>
+          <th style="width: 14%;">Prioritas</th>
+          <th style="width: 58%;">Kondisi Pemicu &amp; Tindakan yang Disarankan</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>RETRY_QUIZ</strong></td>
+          <td><span class="badge badge-danger">95</span> (Tertinggi)</td>
+          <td>Kuis dikerjakan namun skor belum memenuhi syarat kelulusan (&lt; 70%). Langsung mengarahkan ke lembar kuis evaluasi.</td>
+        </tr>
+        <tr>
+          <td><strong>RETURN_TO_LEARNING</strong></td>
+          <td><span class="badge badge-danger">92</span></td>
+          <td>Siswa tidak aktif selama &ge; 7 hari pada kelas yang belum selesai. Memberikan pengingat bersahabat untuk melanjutkan.</td>
+        </tr>
+        <tr>
+          <td><strong>CONTINUE_LEARNING</strong></td>
+          <td><span class="badge badge-warning">90</span></td>
+          <td>Kelas aktif sedang berjalan dalam 7 hari terakhir. Mengarahkan ke materi selanjutnya yang belum dipelajari.</td>
+        </tr>
+        <tr>
+          <td><strong>START_FOUNDATION</strong></td>
+          <td><span class="badge badge-warning">86 / 72</span></td>
+          <td>Siswa baru yang belum memulai belajar, atau siswa yang langsung melompat ke kelas lanjutan sebelum menyelesaikan SC-01.</td>
+        </tr>
+        <tr>
+          <td><strong>REVIEW_WEAK_TOPIC</strong></td>
+          <td><span class="badge badge-primary">84</span></td>
+          <td>Topik kuis yang telah dicoba &ge; 2 kali dengan rata-rata skor &lt; 70%. Merekomendasikan peninjauan ulang modul terkait.</td>
+        </tr>
+        <tr>
+          <td><strong>NEXT_LESSON</strong></td>
+          <td><span class="badge badge-primary">78</span></td>
+          <td>Materi terakhir yang dibaca telah selesai; menyarankan urutan materi logis berikutnya dalam silabus.</td>
+        </tr>
+        <tr>
+          <td><strong>ADVANCE_TO_NEXT_COURSE</strong></td>
+          <td><span class="badge badge-success">66</span></td>
+          <td>Siswa baru saja lulus dan menerima sertifikat pada satu kelas; menyarankan kelas berikutnya pada peta kurikulum.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size: 8.5pt; color: #64748b; margin-top: 4px;">
+      <em>Catatan: Rekomendasi yang disembunyikan (Dismiss) akan otomatis muncul kembali jika siswa memiliki riwayat aktivitas atau percobaan kuis baru pada materi tersebut.</em>
+    </p>
+  </div>
+
+  <div class="feature-card">
+    <div class="feature-header">
+      <span class="feature-title">B. Matriks Penguasaan Topik (Topic Mastery)</span>
+      <span class="badge badge-primary">Mastery</span>
+    </div>
+    <p>Setiap topik evaluasi diklasifikasikan ke dalam 4 pita penguasaan objektif:</p>
+    <ul>
+      <li><span class="badge badge-success">MASTERED</span> Rata-rata skor kuis &ge; 85% dengan status lulus.</li>
+      <li><span class="badge badge-primary">DEVELOPING</span> Rata-rata skor kuis antara 70% s/d 84%.</li>
+      <li><span class="badge badge-danger">NEEDS_PRACTICE</span> Rata-rata skor kuis &lt; 70% atau belum memenuhi passing score.</li>
+      <li><span class="badge badge-warning">NO_DATA</span> Kuis belum pernah dikerjakan oleh siswa.</li>
+    </ul>
+  </div>
+
+  <!-- SECTION 6 -->
+  <div class="section-title">6. Panel Kontrol Administrator &amp; Education Intelligence</div>
+  <p>
+    Panel Administrator diakses melalui menu navigasi atas (hanya bagi pengguna dengan peran <code>ADMIN</code>):
+  </p>
+  <ul>
+    <li><strong>Course Editor &amp; Kurikulum:</strong> Menambah kelas kustom baru, mengedit materi bacaan, mengubah passing score kuis, mengatur urutan kelas (Reorder), dan fitur <em>Reset Baseline (Factory Default)</em> untuk kelas inti.</li>
+    <li><strong>Manajemen Pengguna &amp; Mentor:</strong> Mencari akun, mengubah hak akses (User / Mentor / Admin), mendaftarkan mentor baru, dan menghapus akun non-aktif.</li>
+    <li><strong>Education Intelligence &amp; Retensi Belajar (Sprint 4):</strong>
+      <ul>
+        <li><em>Filter Rentang Waktu:</em> 7 Hari, 30 Hari, 90 Hari, dan Seluruh Waktu (All Time).</li>
+        <li><em>Analisis Drop-off Materi ("Belum Melanjutkan"):</em> Mendeteksi titik materi di mana siswa paling banyak terhenti.</li>
+        <li><em>Analisis Kesulitan Soal:</em> Mengidentifikasi soal-soal kuis dengan tingkat kegagalan tertinggi untuk bahan penyempurnaan silabus.</li>
+        <li><em>Retensi Kohort &amp; Perlindungan Privasi:</em> Melacak retensi belajar mingguan dengan aturan perlindungan privasi kelompok kecil (disamarkan jika kohort &lt; 3 siswa).</li>
+      </ul>
+    </li>
+    <li><strong>Student Intelligence &amp; Jurnal Kohort (Sprint 3):</strong> Statistik agregat adopsi jurnal trading siswa tanpa mengekspos saldo atau nominal uang pribadi siswa.</li>
+  </ul>
+
+  <div class="page-break"></div>
+
+  <!-- SECTION 7 -->
+  <div class="section-title">7. Standar Keamanan Data &amp; Integritas Produksi</div>
+  <div class="callout">
+    <div class="callout-title">Jaminan Keamanan &amp; Integritas Operasional</div>
+    Seluruh sistem backend telah melalui pengujian otomatis <strong>244 / 244 Test PASS</strong> dengan 0 error TypeScript dan 0 error ESLint.
+  </div>
+  <ul>
+    <li><strong>Penyimpanan Berkas Atomik (Atomic File Writes):</strong> Setiap modifikasi data disimpan melalui mekanisme atomic write-temp &amp; rename dengan <code>fsync</code> untuk menjamin file tidak korup meskipun server mengalami mati listrik tiba-tiba.</li>
+    <li><strong>Pencadangan Otomatis (Rolling Backups):</strong> Sistem secara berkala menyimpan snapshot cadangan di direktori <code>data-backups/</code> dan otomatis memulihkan diri jika mendeteksi anomali integritas data.</li>
+    <li><strong>Perlindungan Brute-Force Rate Limiting:</strong> Endpoint autentikasi (<code>/api/auth/login</code> dan <code>/api/auth/register</code>) dilindungi oleh rate limiter berbasis memori dan IP untuk mencegah serangan penebakan kata sandi.</li>
+    <li><strong>Session Token Kriptografis:</strong> Menggunakan token JWT dengan signature 64-karakter acak dan cookie HTTP-only untuk perlindungan dari serangan Cross-Site Scripting (XSS).</li>
+  </ul>
+
+  <!-- SECTION 8 -->
+  <div class="section-title">8. Panduan Akses Cepat &amp; Kredensial Produksi</div>
+  <p>Gunakan informasi berikut untuk masuk dan menguji seluruh kapabilitas sistem di server:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Nilai Konfigurasi Produksi</th>
+        <th>Catatan Akses</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Alamat Portal</strong></td>
+        <td><code>http://187.77.156.219:83</code></td>
+        <td>Dapat dibuka langsung dari browser komputer maupun smartphone.</td>
+      </tr>
+      <tr>
+        <td><strong>Halaman Login</strong></td>
+        <td><code>http://187.77.156.219:83/login</code></td>
+        <td>Akses otentikasi siswa dan administrator.</td>
+      </tr>
+      <tr>
+        <td><strong>Dashboard Siswa</strong></td>
+        <td><code>http://187.77.156.219:83/dashboard</code></td>
+        <td>Portal terpadu Kurikulum, Sertifikat, &amp; Jurnal Trading.</td>
+      </tr>
+      <tr>
+        <td><strong>Panel Administrator</strong></td>
+        <td><code>http://187.77.156.219:83/admin</code></td>
+        <td>Terbuka otomatis jika login sebagai akun berhak akses Administrator.</td>
+      </tr>
+      <tr>
+        <td><strong>Akun Master Admin</strong></td>
+        <td><code>apriyanriyan23@gmail.com</code></td>
+        <td>Akun administrator utama yang terdaftar resmi di database.</td>
+      </tr>
+      <tr>
+        <td><strong>Akun Registrasi Siswa</strong></td>
+        <td><code>http://187.77.156.219:83/register</code></td>
+        <td>Dapat membuat akun siswa baru kapan saja untuk simulasi pengguna baru.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 40px; text-align: center; font-size: 8.5pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+    Dokumentasi Resmi Sistem Signal Casper Academy &copy; 2026. Hak Cipta Dilindungi.
+  </div>
+
+</body>
+</html>
+
