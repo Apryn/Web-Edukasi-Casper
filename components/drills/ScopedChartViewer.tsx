@@ -473,52 +473,50 @@ export default function ScopedChartViewer({
   }
 
   return (
-    <div
-      className={`chart-frame group relative flex flex-col border border-[#28323c] bg-[#10151b] ${className}`}
-    >
+    <div className={`drill-viewer-wrap ${className}`}>
       {/* ── Top Header Toolbar ────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#28323c] bg-[#131a21] px-4 py-2.5">
+      <div className="drill-viewer-topbar">
         {/* Left: Provenance & Mode Badge */}
-        <div className="flex items-center gap-2.5 font-['DM_Mono'] text-[10px] text-[#87939f]">
-          <span className="flex items-center gap-1.5 font-semibold text-[#41d9ef]">
+        <div className="drill-viewer-provenance">
+          <span className="drill-badge-inst">
             <Crosshair className="h-3.5 w-3.5" />
             {provenance?.instrument || "HISTORICAL DRILL"}
           </span>
           {provenance?.timeframe && (
-            <span className="rounded border border-[#28323c] bg-[#090c10] px-1.5 py-0.5 text-[#a3f1fa]">
+            <span className="drill-timeframe-tag">
               {provenance.timeframe}
             </span>
           )}
           {readOnly ? (
-            <span className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-300">
-              <Lock className="h-3 w-3" /> READ-ONLY
+            <span className="drill-status-readonly">
+              <Lock style={{ width: 12, height: 12, display: "inline-block", marginRight: 4 }} /> READ-ONLY
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-[#6ce0b0]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#6ce0b0]" />
+            <span className="drill-status-live">
+              <span className="live-dot" />
               INTERACTIVE
             </span>
           )}
           {showSolutionOverlay && (
-            <span className="inline-flex items-center gap-1 rounded border border-[#53d9bf]/40 bg-[#53d9bf]/10 px-2 py-0.5 text-[#53d9bf]">
-              <Eye className="h-3 w-3" /> SOLUSI AKTIF
+            <span className="drill-status-solution">
+              <Eye style={{ width: 12, height: 12, display: "inline-block", marginRight: 4 }} /> SOLUSI AKTIF
             </span>
           )}
         </div>
 
         {/* Right: Pan/Zoom Controls */}
-        <div className="flex items-center gap-1.5">
+        <div className="drill-zoom-bar">
           <button
             type="button"
             onClick={handleZoomOut}
             disabled={transform.zoom <= 1.0}
             aria-label="Perkecil chart zoom"
-            className="flex h-7 w-7 items-center justify-center border border-[#28323c] bg-[#090c10] text-[#cbd5e1] transition hover:border-[#41d9ef] hover:text-[#41d9ef] disabled:cursor-not-allowed disabled:opacity-40"
+            className="drill-btn-icon"
           >
-            <ZoomOut className="h-3.5 w-3.5" />
+            <ZoomOut style={{ width: 14, height: 14 }} />
           </button>
           <span
-            className="min-w-[42px] text-center font-['DM_Mono'] text-[10px] text-[#87939f]"
+            className="drill-zoom-val"
             aria-live="polite"
           >
             {Math.round(transform.zoom * 100)}%
@@ -528,9 +526,9 @@ export default function ScopedChartViewer({
             onClick={handleZoomIn}
             disabled={transform.zoom >= 3.0}
             aria-label="Perbesar chart zoom"
-            className="flex h-7 w-7 items-center justify-center border border-[#28323c] bg-[#090c10] text-[#cbd5e1] transition hover:border-[#41d9ef] hover:text-[#41d9ef] disabled:cursor-not-allowed disabled:opacity-40"
+            className="drill-btn-icon"
           >
-            <ZoomIn className="h-3.5 w-3.5" />
+            <ZoomIn style={{ width: 14, height: 14 }} />
           </button>
           <button
             type="button"
@@ -538,9 +536,9 @@ export default function ScopedChartViewer({
             disabled={transform.zoom === 1.0 && transform.panX === 0 && transform.panY === 0}
             aria-label="Reset zoom chart ke 1.0x"
             title="Reset ke 100% dan pusatkan"
-            className="flex h-7 items-center gap-1 border border-[#28323c] bg-[#090c10] px-2 font-['DM_Mono'] text-[10px] text-[#cbd5e1] transition hover:border-[#41d9ef] hover:text-[#41d9ef] disabled:cursor-not-allowed disabled:opacity-40"
+            className="drill-btn-reset"
           >
-            <RotateCcw className="h-3 w-3" />
+            <RotateCcw style={{ width: 12, height: 12 }} />
             <span>1.0x</span>
           </button>
         </div>
@@ -548,24 +546,20 @@ export default function ScopedChartViewer({
 
       {/* ── Level Selection Toolbar (Interactive Mode Only) ──────── */}
       {!readOnly && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#28323c] bg-[#0d1217] px-4 py-2">
-          <div className="flex items-center gap-2">
-            <span className="font-['DM_Mono'] text-[10px] uppercase text-[#6f7d88]">
+        <div className="drill-tools-bar">
+          <div className="drill-tools-group">
+            <span className="drill-tools-label">
               Klik Chart Untuk Pasang:
             </span>
-            <div className="flex gap-1.5" role="radiogroup" aria-label="Alat Level Penempatan">
+            <div style={{ display: "flex", gap: 6 }} role="radiogroup" aria-label="Alat Level Penempatan">
               <button
                 type="button"
                 onClick={() => setActiveTool("ENTRY")}
                 aria-checked={currentActiveTool === "ENTRY"}
                 role="radio"
-                className={`flex items-center gap-1.5 border px-2.5 py-1 font-['DM_Mono'] text-[10px] transition ${
-                  currentActiveTool === "ENTRY"
-                    ? "border-[#41d9ef] bg-[#41d9ef]/15 text-[#41d9ef]"
-                    : "border-[#28323c] bg-[#10151b] text-[#87939f] hover:border-[#384857] hover:text-[#eef2f5]"
-                }`}
+                className={`drill-tool-btn entry ${currentActiveTool === "ENTRY" ? "active" : ""}`}
               >
-                <span className="h-2 w-2 rounded-full bg-[#41d9ef]" />
+                <span className="drill-dot-entry" />
                 Entry
               </button>
               <button
@@ -573,13 +567,9 @@ export default function ScopedChartViewer({
                 onClick={() => setActiveTool("INVALIDATION")}
                 aria-checked={currentActiveTool === "INVALIDATION"}
                 role="radio"
-                className={`flex items-center gap-1.5 border px-2.5 py-1 font-['DM_Mono'] text-[10px] transition ${
-                  currentActiveTool === "INVALIDATION"
-                    ? "border-[#f43f5e] bg-[#f43f5e]/15 text-[#f43f5e]"
-                    : "border-[#28323c] bg-[#10151b] text-[#87939f] hover:border-[#384857] hover:text-[#eef2f5]"
-                }`}
+                className={`drill-tool-btn sl ${currentActiveTool === "INVALIDATION" ? "active" : ""}`}
               >
-                <span className="h-2 w-2 rounded-full bg-[#f43f5e]" />
+                <span className="drill-dot-sl" />
                 Stop-Loss
               </button>
               <button
@@ -587,20 +577,16 @@ export default function ScopedChartViewer({
                 onClick={() => setActiveTool("TARGET")}
                 aria-checked={currentActiveTool === "TARGET"}
                 role="radio"
-                className={`flex items-center gap-1.5 border px-2.5 py-1 font-['DM_Mono'] text-[10px] transition ${
-                  currentActiveTool === "TARGET"
-                    ? "border-[#53d9bf] bg-[#53d9bf]/15 text-[#53d9bf]"
-                    : "border-[#28323c] bg-[#10151b] text-[#87939f] hover:border-[#384857] hover:text-[#eef2f5]"
-                }`}
+                className={`drill-tool-btn tp ${currentActiveTool === "TARGET" ? "active" : ""}`}
               >
-                <span className="h-2 w-2 rounded-full bg-[#53d9bf]" />
+                <span className="drill-dot-tp" />
                 Target (TP)
               </button>
             </div>
           </div>
 
-          <div className="hidden items-center gap-1.5 text-[10px] text-[#6f7d88] md:flex">
-            <Info className="h-3 w-3 text-[#41d9ef]" />
+          <div className="drill-tools-hint">
+            <Info style={{ width: 13, height: 13, color: "var(--cyan)" }} />
             <span>Geser garis atau klik chart untuk mengatur harga</span>
           </div>
         </div>
@@ -623,7 +609,7 @@ export default function ScopedChartViewer({
             ? "default"
             : "crosshair",
         }}
-        className="viewer-viewport relative h-[360px] w-full select-none overflow-hidden bg-[#090c10] sm:h-[440px] md:h-[500px]"
+        className="drill-canvas-viewport"
         tabIndex={0}
         aria-label="Interactive Chart Viewer Canvas"
       >
@@ -667,15 +653,15 @@ export default function ScopedChartViewer({
             )}
 
           {/* ── Level Lines Layer (Pixel-Locked with Image Underneath) ── */}
-          <div className="chart-levels-overlay absolute inset-0 pointer-events-none">
+          <div className="drill-level-overlay">
             {/* 1. Entry Line (Cyan) */}
             {levels.entry != null && (
               <div
                 style={{ top: `${levels.entry.normalizedY * 100}%` }}
-                className="absolute left-0 right-0 z-10 -translate-y-1/2"
+                className="drill-level-row"
               >
-                <div className="relative flex items-center">
-                  <div className="h-[2px] w-full border-t-2 border-dashed border-[#41d9ef] shadow-[0_0_8px_rgba(65,217,239,0.4)]" />
+                <div className="drill-level-line-wrap">
+                  <div className="drill-level-line entry" />
                   <div
                     tabIndex={readOnly ? -1 : 0}
                     role="slider"
@@ -690,15 +676,11 @@ export default function ScopedChartViewer({
                       setDraggedLevelKey("entry");
                     }}
                     data-handle="entry"
-                    className={`absolute left-3 flex items-center gap-1.5 rounded-none border border-[#41d9ef] bg-[#090c10] px-2 py-0.5 font-['DM_Mono'] text-[10px] font-semibold text-[#41d9ef] shadow-lg ${
-                      readOnly
-                        ? "pointer-events-none opacity-90"
-                        : "pointer-events-auto cursor-ns-resize hover:bg-[#41d9ef]/20 focus:outline-none focus:ring-1 focus:ring-[#41d9ef]"
-                    }`}
+                    className={`drill-level-handle entry ${readOnly ? "readonly" : ""}`}
                   >
-                    {!readOnly && <ArrowUpDown className="h-2.5 w-2.5" />}
+                    {!readOnly && <ArrowUpDown style={{ width: 11, height: 11 }} />}
                     <span>ENTRY:</span>
-                    <span className="font-bold">
+                    <span>
                       {formatPrice(levels.entry.price, priceBounds.decimals)}
                     </span>
                   </div>
@@ -710,10 +692,10 @@ export default function ScopedChartViewer({
             {levels.invalidation != null && (
               <div
                 style={{ top: `${levels.invalidation.normalizedY * 100}%` }}
-                className="absolute left-0 right-0 z-10 -translate-y-1/2"
+                className="drill-level-row"
               >
-                <div className="relative flex items-center">
-                  <div className="h-[2px] w-full border-t-2 border-dashed border-[#f43f5e] shadow-[0_0_8px_rgba(244,63,94,0.4)]" />
+                <div className="drill-level-line-wrap">
+                  <div className="drill-level-line sl" />
                   <div
                     tabIndex={readOnly ? -1 : 0}
                     role="slider"
@@ -728,15 +710,11 @@ export default function ScopedChartViewer({
                       setDraggedLevelKey("invalidation");
                     }}
                     data-handle="invalidation"
-                    className={`absolute left-3 flex items-center gap-1.5 rounded-none border border-[#f43f5e] bg-[#090c10] px-2 py-0.5 font-['DM_Mono'] text-[10px] font-semibold text-[#f43f5e] shadow-lg ${
-                      readOnly
-                        ? "pointer-events-none opacity-90"
-                        : "pointer-events-auto cursor-ns-resize hover:bg-[#f43f5e]/20 focus:outline-none focus:ring-1 focus:ring-[#f43f5e]"
-                    }`}
+                    className={`drill-level-handle sl ${readOnly ? "readonly" : ""}`}
                   >
-                    {!readOnly && <ArrowUpDown className="h-2.5 w-2.5" />}
+                    {!readOnly && <ArrowUpDown style={{ width: 11, height: 11 }} />}
                     <span>STOP-LOSS:</span>
-                    <span className="font-bold">
+                    <span>
                       {formatPrice(levels.invalidation.price, priceBounds.decimals)}
                     </span>
                   </div>
@@ -748,10 +726,10 @@ export default function ScopedChartViewer({
             {levels.target != null && (
               <div
                 style={{ top: `${levels.target.normalizedY * 100}%` }}
-                className="absolute left-0 right-0 z-10 -translate-y-1/2"
+                className="drill-level-row"
               >
-                <div className="relative flex items-center">
-                  <div className="h-[2px] w-full border-t-2 border-dashed border-[#53d9bf] shadow-[0_0_8px_rgba(83,217,191,0.4)]" />
+                <div className="drill-level-line-wrap">
+                  <div className="drill-level-line tp" />
                   <div
                     tabIndex={readOnly ? -1 : 0}
                     role="slider"
@@ -766,15 +744,11 @@ export default function ScopedChartViewer({
                       setDraggedLevelKey("target");
                     }}
                     data-handle="target"
-                    className={`absolute left-3 flex items-center gap-1.5 rounded-none border border-[#53d9bf] bg-[#090c10] px-2 py-0.5 font-['DM_Mono'] text-[10px] font-semibold text-[#53d9bf] shadow-lg ${
-                      readOnly
-                        ? "pointer-events-none opacity-90"
-                        : "pointer-events-auto cursor-ns-resize hover:bg-[#53d9bf]/20 focus:outline-none focus:ring-1 focus:ring-[#53d9bf]"
-                    }`}
+                    className={`drill-level-handle tp ${readOnly ? "readonly" : ""}`}
                   >
-                    {!readOnly && <ArrowUpDown className="h-2.5 w-2.5" />}
+                    {!readOnly && <ArrowUpDown style={{ width: 11, height: 11 }} />}
                     <span>TARGET:</span>
-                    <span className="font-bold">
+                    <span>
                       {formatPrice(levels.target.price, priceBounds.decimals)}
                     </span>
                   </div>
@@ -788,12 +762,12 @@ export default function ScopedChartViewer({
                 {/* Horizontal guide line */}
                 <div
                   style={{ top: `${crosshair.stageY}px` }}
-                  className="pointer-events-none absolute left-0 right-0 z-20 h-[1px] border-t border-dashed border-[#41d9ef]/50"
+                  className="drill-crosshair-h"
                 />
                 {/* Vertical guide line */}
                 <div
                   style={{ left: `${crosshair.stageX}px` }}
-                  className="pointer-events-none absolute bottom-0 top-0 z-20 w-[1px] border-l border-dashed border-[#41d9ef]/50"
+                  className="drill-crosshair-v"
                 />
               </>
             )}
@@ -806,7 +780,7 @@ export default function ScopedChartViewer({
             style={{
               top: `${transform.panY + crosshair.stageY * transform.zoom}px`,
             }}
-            className="pointer-events-none absolute right-2 z-30 -translate-y-1/2 border border-[#41d9ef] bg-[#061116] px-2 py-1 font-['DM_Mono'] text-[11px] font-bold text-[#41d9ef] shadow-xl"
+            className="drill-price-pill"
             aria-live="polite"
           >
             {formatPrice(crosshair.price, priceBounds.decimals)}
@@ -814,7 +788,7 @@ export default function ScopedChartViewer({
         )}
 
         {/* Price Bounds Indicator at Edge */}
-        <div className="pointer-events-none absolute bottom-2 right-2 z-20 flex flex-col items-end gap-1 font-['DM_Mono'] text-[9px] text-[#6f7d88]">
+        <div className="drill-bounds-indicator">
           <span>MAX: {formatPrice(priceBounds.maxPrice, priceBounds.decimals)}</span>
           <span>MIN: {formatPrice(priceBounds.minPrice, priceBounds.decimals)}</span>
         </div>
@@ -822,8 +796,8 @@ export default function ScopedChartViewer({
 
       {/* ── Bottom Provenance Metadata Footnote ──────────────────── */}
       {provenance && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#28323c] bg-[#0e141a] px-4 py-2 font-['DM_Mono'] text-[9px] text-[#6f7d88]">
-          <div className="flex items-center gap-3">
+        <div className="drill-viewer-footnote">
+          <div className="drill-footnote-meta">
             <span>SUMBER: {provenance.dataSource || "Institutional Curated Feed"}</span>
             <span>PERIODE: {provenance.dataPeriod || "Historical Sample"}</span>
           </div>

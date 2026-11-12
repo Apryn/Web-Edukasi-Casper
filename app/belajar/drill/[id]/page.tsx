@@ -54,9 +54,9 @@ export default async function StudentDrillPage({
   const publicDrill = sanitizeDrillForStudent(drill, userSummary);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#090c10]">
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--bg)" }}>
       <Navbar />
-      <div className="flex-1">
+      <div style={{ flex: 1 }}>
         <StudentDrillWorkspace
           drill={publicDrill}
           initialSummary={userSummary}

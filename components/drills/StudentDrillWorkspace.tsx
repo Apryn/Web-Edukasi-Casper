@@ -352,28 +352,28 @@ export default function StudentDrillWorkspace({
   };
 
   return (
-    <div className="min-h-screen bg-[#090c10] text-[#eef2f5]">
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
       {/* ── Breadcrumb & Top Bar ──────────────────────────────────── */}
-      <div className="border-b border-[#1c252d] bg-[#0c1116] px-4 py-3 sm:px-8">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 font-['DM_Mono'] text-[11px]">
+      <div className="drill-topbar">
+        <div className="drill-topbar-inner">
           <Link
             href="/belajar"
-            className="flex items-center gap-1.5 text-[#87939f] transition hover:text-[#41d9ef]"
+            className="drill-back-link"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft style={{ width: 16, height: 16 }} />
             <span>KEMBALI KE KATALOG DRILL</span>
           </Link>
 
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-[#41d9ef]">
-              <Crosshair className="h-3.5 w-3.5" />
+          <div className="drill-meta-pills">
+            <span className="drill-badge-inst">
+              <Crosshair style={{ width: 14, height: 14 }} />
               {drill.instrument} · {drill.timeframe}
             </span>
-            <span className="rounded border border-[#28323c] bg-[#10151b] px-2 py-0.5 text-[#87939f]">
+            <span className="drill-badge-tag">
               {drill.classification}
             </span>
             {summary && (
-              <span className="rounded border border-[#53d9bf]/30 bg-[#53d9bf]/10 px-2 py-0.5 text-[#53d9bf]">
+              <span className="drill-badge-attempts">
                 PERCOBAAN KE-{summary.attemptsCount} (TERBAIK: {summary.bestScore}%)
               </span>
             )}
@@ -382,156 +382,133 @@ export default function StudentDrillWorkspace({
       </div>
 
       {/* ── Workspace Main Grid ────────────────────────────────────── */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-8">
+      <main className="drill-page-wrap">
         {/* Title & Context Prompt */}
-        <div className="mb-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-['DM_Mono'] text-xs font-semibold text-[#41d9ef]">
+        <div className="drill-header">
+          <div>
+            <span className="drill-header-tag">
               STUDI KASUS PRAKTIK #{drill.slug.toUpperCase()}
             </span>
-            <span className="font-['DM_Mono'] text-xs text-[#6f7d88]">
+            <span className="drill-header-version">
               (Drill v{drill.drillVersion} · Rubrik v{drill.rubricVersion})
             </span>
           </div>
-          <h1 className="mt-1 font-['Manrope'] text-2xl font-bold tracking-tight text-[#eef2f5] sm:text-3xl">
+          <h1 className="drill-title">
             {drill.title}
           </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#94a3b8]">
+          <p className="drill-desc">
             {drill.contextPrompt}
           </p>
         </div>
 
         {/* 2-Column Responsive Container */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* ── Left Column: Chart Area (7 of 12 cols = ~60%) ─────── */}
-          <div className="flex flex-col gap-4 lg:col-span-7">
-            {/* Chart Container Locked to 16:9 Aspect Ratio to Eliminate Letterboxing */}
-            <div className="aspect-[16/9] w-full overflow-hidden border border-[#28323c] bg-[#10151b] shadow-2xl">
-              <ScopedChartViewer
-                chartAssetUrl={drill.chartAssetUrl}
-                priceBounds={drill.priceBounds}
-                provenance={{
-                  instrument: drill.instrument,
-                  timeframe: drill.timeframe,
-                  dataPeriod: drill.dataPeriod,
-                  dataSource: drill.dataSource,
-                  classification: drill.classification,
-                }}
-                levels={levels}
-                onLevelsChange={handleChartLevelsChange}
-                readOnly={viewMode === "DEBRIEF"}
-                activePlacementTool={activePlacementTool}
-                onActivePlacementToolChange={setActivePlacementTool}
-                solutionOverlayUrl={solutionData?.solutionOverlayUrl}
-                showSolutionOverlay={showSolutionOverlay}
-                className="h-full w-full"
-              />
-            </div>
+        <div className="drill-workspace-grid">
+          {/* ── Left Column: Chart Area ─────── */}
+          <div>
+            {/* Chart Viewer */}
+            <ScopedChartViewer
+              chartAssetUrl={drill.chartAssetUrl}
+              priceBounds={drill.priceBounds}
+              provenance={{
+                instrument: drill.instrument,
+                timeframe: drill.timeframe,
+                dataPeriod: drill.dataPeriod,
+                dataSource: drill.dataSource,
+                classification: drill.classification,
+              }}
+              levels={levels}
+              onLevelsChange={handleChartLevelsChange}
+              readOnly={viewMode === "DEBRIEF"}
+              activePlacementTool={activePlacementTool}
+              onActivePlacementToolChange={setActivePlacementTool}
+              solutionOverlayUrl={solutionData?.solutionOverlayUrl}
+              showSolutionOverlay={showSolutionOverlay}
+            />
 
             {/* Scenario Instructions & Objectives Accordion */}
-            <div className="border border-[#28323c] bg-[#10151b] p-4 text-xs text-[#87939f]">
-              <div className="mb-2 flex items-center gap-2 font-['DM_Mono'] text-[10px] font-semibold uppercase text-[#41d9ef]">
-                <Info className="h-3.5 w-3.5" />
-                Instruksi Analisis Objektif
+            <div className="drill-instructions">
+              <div className="drill-instructions-head">
+                <Info style={{ width: 14, height: 14 }} />
+                <span>Instruksi Analisis Objektif</span>
               </div>
-              <ul className="list-inside list-disc space-y-1.5 leading-relaxed text-[#cbd5e1]">
+              <ul>
                 {drill.instructions.map((inst, idx) => (
                   <li key={idx}>{inst}</li>
                 ))}
               </ul>
-              <div className="mt-3 flex items-center justify-between border-t border-[#1c252d] pt-2 font-['DM_Mono'] text-[10px] text-[#6f7d88]">
+              <div className="drill-instructions-foot">
                 <span>Batas Kelulusan: ≥ {drill.passingScore}%</span>
-                <span className="text-amber-400">
+                <strong>
                   Syarat Stop-Loss: ≥ {drill.safetyGateMin}/25 Poin (Safety Gate)
-                </span>
+                </strong>
               </div>
             </div>
           </div>
 
-          {/* ── Right Column: Decision Console or Debrief (5 of 12 = ~40%) ── */}
-          <div className="flex flex-col gap-4 lg:col-span-5">
+          {/* ── Right Column: Decision Console or Debrief ── */}
+          <div>
             {viewMode === "CONSOLE" ? (
               /* ── Form Console Mode ───────────────────────────────── */
-              <div className="border border-[#28323c] bg-[#10151b] p-5">
-                <div className="mb-4 flex items-center justify-between border-b border-[#1c252d] pb-3">
-                  <h2 className="font-['Manrope'] text-sm font-bold uppercase tracking-wider text-[#eef2f5]">
+              <div className="drill-panel drill-card-inner">
+                <div className="drill-console-head">
+                  <h2 className="drill-console-title">
                     Student Decision Console
                   </h2>
-                  <span className="font-['DM_Mono'] text-[10px] text-[#6ce0b0]">
-                    ● SIAP INPUT
+                  <span className="drill-console-status">
+                    <span className="live-dot" /> SIAP INPUT
                   </span>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit}>
                   {/* Stance Selector: Trade vs No-Trade */}
-                  <div>
-                    <label className="mb-2 block font-['DM_Mono'] text-[10px] uppercase text-[#6f7d88]">
+                  <div className="drill-form-step">
+                    <label className="drill-step-label">
                       1. Sikap Keputusan Eksekusi
                     </label>
-                    <div className="grid grid-cols-2 gap-2" role="radiogroup">
+                    <div className="drill-btn-grid-2" role="radiogroup">
                       <button
                         type="button"
                         onClick={() => setStance("TRADE")}
-                        className={`flex items-center justify-center gap-2 border py-2.5 font-['DM_Mono'] text-xs font-semibold transition ${
-                          stance === "TRADE"
-                            ? "border-[#41d9ef] bg-[#41d9ef]/15 text-[#41d9ef]"
-                            : "border-[#28323c] bg-[#0c1116] text-[#87939f] hover:border-[#384857]"
-                        }`}
+                        className={`drill-choice-btn trade ${stance === "TRADE" ? "active" : ""}`}
                       >
-                        <TrendingUp className="h-3.5 w-3.5" />
-                        AMBIL POSISI
+                        <TrendingUp style={{ width: 14, height: 14 }} />
+                        <span>AMBIL POSISI</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setStance("NO_TRADE")}
-                        className={`flex items-center justify-center gap-2 border py-2.5 font-['DM_Mono'] text-xs font-semibold transition ${
-                          stance === "NO_TRADE"
-                            ? "border-amber-400 bg-amber-400/15 text-amber-300"
-                            : "border-[#28323c] bg-[#0c1116] text-[#87939f] hover:border-[#384857]"
-                        }`}
+                        className={`drill-choice-btn notrade ${stance === "NO_TRADE" ? "active" : ""}`}
                       >
-                        <MinusCircle className="h-3.5 w-3.5" />
-                        DISIPLIN NO-TRADE
+                        <MinusCircle style={{ width: 14, height: 14 }} />
+                        <span>DISIPLIN NO-TRADE</span>
                       </button>
                     </div>
                   </div>
 
                   {/* Market Bias Selector */}
-                  <div>
-                    <label className="mb-2 block font-['DM_Mono'] text-[10px] uppercase text-[#6f7d88]">
+                  <div className="drill-form-step">
+                    <label className="drill-step-label">
                       2. Analisis Bias Arah Pasar (Order Flow)
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="drill-btn-grid-3">
                       <button
                         type="button"
                         onClick={() => setBias("BULLISH")}
-                        className={`border py-2 text-center font-['DM_Mono'] text-xs font-semibold transition ${
-                          bias === "BULLISH"
-                            ? "border-[#53d9bf] bg-[#53d9bf]/15 text-[#53d9bf]"
-                            : "border-[#28323c] bg-[#0c1116] text-[#87939f]"
-                        }`}
+                        className={`drill-bias-btn bullish ${bias === "BULLISH" ? "active" : ""}`}
                       >
                         BULLISH (LONG)
                       </button>
                       <button
                         type="button"
                         onClick={() => setBias("BEARISH")}
-                        className={`border py-2 text-center font-['DM_Mono'] text-xs font-semibold transition ${
-                          bias === "BEARISH"
-                            ? "border-[#f43f5e] bg-[#f43f5e]/15 text-[#f43f5e]"
-                            : "border-[#28323c] bg-[#0c1116] text-[#87939f]"
-                        }`}
+                        className={`drill-bias-btn bearish ${bias === "BEARISH" ? "active" : ""}`}
                       >
                         BEARISH (SHORT)
                       </button>
                       <button
                         type="button"
                         onClick={() => setBias("SIDEWAYS_NEUTRAL")}
-                        className={`border py-2 text-center font-['DM_Mono'] text-xs font-semibold transition ${
-                          bias === "SIDEWAYS_NEUTRAL"
-                            ? "border-[#cbd5e1] bg-[#cbd5e1]/15 text-[#cbd5e1]"
-                            : "border-[#28323c] bg-[#0c1116] text-[#87939f]"
-                        }`}
+                        className={`drill-bias-btn sideways ${bias === "SIDEWAYS_NEUTRAL" ? "active" : ""}`}
                       >
                         SIDEWAYS
                       </button>
@@ -540,17 +517,15 @@ export default function StudentDrillWorkspace({
 
                   {/* Stance Branch A: Take Trade Inputs */}
                   {stance === "TRADE" ? (
-                    <div className="space-y-4 rounded border border-[#1f2937] bg-[#090c10] p-4">
-                      <span className="font-['DM_Mono'] text-[10px] uppercase text-[#41d9ef]">
+                    <div className="drill-params-card">
+                      <span className="drill-params-head">
                         3. Parameter Level Harga (Klik Chart atau Ketik)
                       </span>
 
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="drill-inputs-row">
                         {/* Entry */}
-                        <div>
-                          <label className="mb-1 block font-['DM_Mono'] text-[9px] text-[#41d9ef]">
-                            ENTRY PRICE
-                          </label>
+                        <div className="drill-input-field entry">
+                          <label>ENTRY PRICE</label>
                           <input
                             type="number"
                             step="any"
@@ -559,15 +534,13 @@ export default function StudentDrillWorkspace({
                               setEntryPrice(e.target.value === "" ? "" : Number(e.target.value))
                             }
                             placeholder="0.00"
-                            className="w-full border border-[#28323c] bg-[#10151b] px-2.5 py-1.5 font-['DM_Mono'] text-xs text-[#eef2f5] focus:border-[#41d9ef] focus:outline-none"
+                            className="drill-text-input"
                           />
                         </div>
 
                         {/* Stop Loss */}
-                        <div>
-                          <label className="mb-1 block font-['DM_Mono'] text-[9px] text-[#f43f5e]">
-                            STOP-LOSS (SL)
-                          </label>
+                        <div className="drill-input-field sl">
+                          <label>STOP-LOSS (SL)</label>
                           <input
                             type="number"
                             step="any"
@@ -578,15 +551,13 @@ export default function StudentDrillWorkspace({
                               )
                             }
                             placeholder="0.00"
-                            className="w-full border border-[#28323c] bg-[#10151b] px-2.5 py-1.5 font-['DM_Mono'] text-xs text-[#eef2f5] focus:border-[#f43f5e] focus:outline-none"
+                            className="drill-text-input"
                           />
                         </div>
 
                         {/* Target */}
-                        <div>
-                          <label className="mb-1 block font-['DM_Mono'] text-[9px] text-[#53d9bf]">
-                            TARGET (TP)
-                          </label>
+                        <div className="drill-input-field tp">
+                          <label>TARGET (TP)</label>
                           <input
                             type="number"
                             step="any"
@@ -595,21 +566,21 @@ export default function StudentDrillWorkspace({
                               setTargetPrice(e.target.value === "" ? "" : Number(e.target.value))
                             }
                             placeholder="0.00"
-                            className="w-full border border-[#28323c] bg-[#10151b] px-2.5 py-1.5 font-['DM_Mono'] text-xs text-[#eef2f5] focus:border-[#53d9bf] focus:outline-none"
+                            className="drill-text-input"
                           />
                         </div>
                       </div>
 
                       {/* Live R:R Pill */}
-                      <div className="flex items-center justify-between border-t border-[#1c252d] pt-2 font-['DM_Mono'] text-[10px]">
-                        <span className="text-[#6f7d88]">Risk/Reward Ratio:</span>
+                      <div className="drill-rr-box">
+                        <span style={{ color: "#6f7d88" }}>Risk/Reward Ratio:</span>
                         <span
-                          className={`font-bold ${
+                          className={`drill-rr-val ${
                             liveRiskReward.status === "OPTIMAL"
-                              ? "text-[#53d9bf]"
+                              ? "optimal"
                               : liveRiskReward.status === "MARGINAL"
-                              ? "text-amber-400"
-                              : "text-[#87939f]"
+                              ? "marginal"
+                              : "invalid"
                           }`}
                         >
                           {liveRiskReward.label}
@@ -618,22 +589,21 @@ export default function StudentDrillWorkspace({
                     </div>
                   ) : (
                     /* Stance Branch B: NO-TRADE Contextual Reasons */
-                    <div className="space-y-3 rounded border border-amber-500/20 bg-amber-500/5 p-4">
-                      <span className="font-['DM_Mono'] text-[10px] uppercase text-amber-300">
+                    <div className="drill-notrade-card">
+                      <span className="drill-notrade-head">
                         3. Landasan Struktural Keputusan Menahan Diri
                       </span>
-                      <div className="space-y-2">
+                      <div className="drill-radio-list">
                         {COMMON_NO_TRADE_REASONS.map((reason) => (
                           <label
                             key={reason.id}
-                            className="flex cursor-pointer items-start gap-2 text-xs text-[#cbd5e1]"
+                            className="drill-radio-item"
                           >
                             <input
                               type="radio"
                               name="noTradeReasonGroup"
                               checked={noTradeReason === reason.id}
                               onChange={() => setNoTradeReason(reason.id)}
-                              className="mt-0.5"
                             />
                             <span>{reason.label}</span>
                           </label>
@@ -644,21 +614,20 @@ export default function StudentDrillWorkspace({
 
                   {/* Structural Confirmations Checklist */}
                   {stance === "TRADE" && (
-                    <div>
-                      <label className="mb-2 block font-['DM_Mono'] text-[10px] uppercase text-[#6f7d88]">
+                    <div className="drill-form-step">
+                      <label className="drill-step-label">
                         4. Konfirmasi Struktur Yang Teridentifikasi
                       </label>
-                      <div className="space-y-1.5">
+                      <div className="drill-checklist">
                         {COMMON_CONFIRMATIONS.map((conf) => (
                           <label
                             key={conf.id}
-                            className="flex cursor-pointer items-center gap-2 rounded border border-[#1f2937] bg-[#0c1116] px-3 py-1.5 text-xs text-[#cbd5e1] hover:border-[#374151]"
+                            className="drill-check-item"
                           >
                             <input
                               type="checkbox"
                               checked={selectedConfirmations.includes(conf.id)}
                               onChange={() => toggleConfirmation(conf.id)}
-                              className="rounded border-[#28323c]"
                             />
                             <span>{conf.label}</span>
                           </label>
@@ -668,8 +637,8 @@ export default function StudentDrillWorkspace({
                   )}
 
                   {/* Rationale Thesis */}
-                  <div>
-                    <label className="mb-1 block font-['DM_Mono'] text-[10px] uppercase text-[#6f7d88]">
+                  <div className="drill-form-step">
+                    <label className="drill-step-label">
                       {stance === "TRADE"
                         ? "5. Narasi Analisis & Thesis Posisi"
                         : "4. Penjelasan Analisis Proteksi Modal"}
@@ -679,14 +648,14 @@ export default function StudentDrillWorkspace({
                       value={rationaleText}
                       onChange={(e) => setRationaleText(e.target.value)}
                       placeholder="Jelaskan dasar pembacaan likuiditas, alasan penempatan stop-loss di balik swing structure, atau alasan menahan modal..."
-                      className="w-full border border-[#28323c] bg-[#0c1116] p-2.5 text-xs text-[#eef2f5] focus:border-[#41d9ef] focus:outline-none"
+                      className="drill-textarea"
                     />
                   </div>
 
                   {/* Error Callout */}
                   {submissionError && (
-                    <div className="flex items-center gap-2 border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
-                      <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
+                    <div className="drill-alert-box">
+                      <AlertTriangle style={{ width: 16, height: 16 }} />
                       <span>{submissionError}</span>
                     </div>
                   )}
@@ -695,16 +664,16 @@ export default function StudentDrillWorkspace({
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex w-full items-center justify-center gap-2 border border-[#41d9ef] bg-[#41d9ef] py-3 font-['DM_Mono'] text-xs font-bold text-[#061116] transition hover:bg-[#a3f1fa] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="drill-btn-submit"
                   >
                     {isSubmitting ? (
                       <>
-                        <RotateCcw className="h-4 w-4 animate-spin" />
+                        <RotateCcw style={{ width: 15, height: 15 }} className="animate-spin" />
                         <span>MENGEVALUASI DI SERVER...</span>
                       </>
                     ) : (
                       <>
-                        <Send className="h-4 w-4" />
+                        <Send style={{ width: 15, height: 15 }} />
                         <span>KIRIM JAWABAN EVALUASI</span>
                       </>
                     )}
@@ -714,39 +683,39 @@ export default function StudentDrillWorkspace({
             ) : (
               /* ── Debrief Mode (After Submission) ─────────────────── */
               activeSubmission && (
-                <div className="border border-[#28323c] bg-[#10151b] p-5">
+                <div className="drill-panel drill-card-inner">
                   {/* Status Banner */}
                   <div
-                    className={`mb-5 border p-4 text-center ${
+                    className={`drill-debrief-banner ${
                       activeSubmission.evaluation_status === "PASSED"
-                        ? "border-[#53d9bf]/40 bg-[#53d9bf]/10 text-[#53d9bf]"
+                        ? "passed"
                         : activeSubmission.evaluation_status === "FAILED_SAFETY_GATE"
-                        ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-                        : "border-[#f43f5e]/40 bg-[#f43f5e]/10 text-[#f43f5e]"
+                        ? "safety-fail"
+                        : "failed"
                     }`}
                   >
-                    <div className="mb-1 flex items-center justify-center gap-1.5 font-['DM_Mono'] text-xs font-bold">
+                    <div className="drill-debrief-title">
                       {activeSubmission.evaluation_status === "PASSED" ? (
                         <>
-                          <ShieldCheck className="h-4 w-4" />
+                          <ShieldCheck style={{ width: 16, height: 16 }} />
                           <span>EVALUASI PRAKTIK: LULUS</span>
                         </>
                       ) : activeSubmission.evaluation_status === "FAILED_SAFETY_GATE" ? (
                         <>
-                          <AlertTriangle className="h-4 w-4" />
+                          <AlertTriangle style={{ width: 16, height: 16 }} />
                           <span>BELUM LULUS: PELANGGARAN SAFETY GATE</span>
                         </>
                       ) : (
                         <>
-                          <ShieldAlert className="h-4 w-4" />
+                          <ShieldAlert style={{ width: 16, height: 16 }} />
                           <span>EVALUASI PRAKTIK: BELUM LULUS</span>
                         </>
                       )}
                     </div>
-                    <div className="font-['Manrope'] text-3xl font-extrabold tracking-tight">
+                    <div className="drill-debrief-score">
                       {activeSubmission.score}%
                     </div>
-                    <p className="mt-1.5 text-xs text-[#cbd5e1]">
+                    <p className="drill-debrief-note">
                       {activeSubmission.evaluation_status === "PASSED"
                         ? "Analisis struktur dan manajemen risiko memenuhi standar kelulusan institusional."
                         : activeSubmission.evaluation_status === "FAILED_SAFETY_GATE"
@@ -756,30 +725,28 @@ export default function StudentDrillWorkspace({
                   </div>
 
                   {/* 5 Criteria Breakdown Table */}
-                  <div className="mb-5 space-y-2">
-                    <span className="font-['DM_Mono'] text-[10px] uppercase text-[#6f7d88]">
+                  <div style={{ marginBottom: 18 }}>
+                    <span className="drill-step-label">
                       Rincian Evaluasi 5 Kriteria Objektif
                     </span>
-                    <div className="divide-y divide-[#1c252d] border border-[#1f2937]">
+                    <div className="drill-breakdown-card">
                       {activeSubmission.evaluation_breakdown.map((crit) => (
-                        <div key={crit.criterionId} className="p-2.5 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-[#eef2f5]">
-                              {crit.criterionName}
-                            </span>
+                        <div key={crit.criterionId} className="drill-breakdown-row">
+                          <div className="drill-breakdown-meta">
+                            <span>{crit.criterionName}</span>
                             <span
-                              className={`font-['DM_Mono'] font-bold ${
+                              className={`drill-crit-score ${
                                 crit.status === "FULL_CREDIT"
-                                  ? "text-[#53d9bf]"
+                                  ? "full"
                                   : crit.status === "PARTIAL_CREDIT"
-                                  ? "text-amber-400"
-                                  : "text-[#f43f5e]"
+                                  ? "partial"
+                                  : "zero"
                               }`}
                             >
                               {crit.pointsEarned} / {crit.pointsPossible}
                             </span>
                           </div>
-                          <p className="mt-1 text-[11px] text-[#94a3b8]">
+                          <p className="drill-crit-expl">
                             {crit.explanation}
                           </p>
                         </div>
@@ -789,23 +756,23 @@ export default function StudentDrillWorkspace({
 
                   {/* Instructor Debrief Text */}
                   {activeSubmission.debrief_text && (
-                    <div className="mb-5 border-l-2 border-[#41d9ef] bg-[#0c1116] p-3 text-xs text-[#cbd5e1]">
-                      <span className="mb-1 block font-['DM_Mono'] text-[10px] font-semibold text-[#41d9ef]">
+                    <div className="drill-instructor-card">
+                      <span className="drill-instructor-title">
                         CATATAN INSTRUKTUR:
                       </span>
-                      <p className="leading-relaxed">{activeSubmission.debrief_text}</p>
+                      <p style={{ margin: 0 }}>{activeSubmission.debrief_text}</p>
                     </div>
                   )}
 
                   {/* Action Buttons */}
-                  <div className="space-y-2">
+                  <div>
                     <button
                       type="button"
                       onClick={handleToggleSolution}
                       disabled={loadingSolution}
-                      className="flex w-full items-center justify-center gap-2 border border-[#53d9bf] bg-[#53d9bf]/10 py-2.5 font-['DM_Mono'] text-xs font-semibold text-[#53d9bf] transition hover:bg-[#53d9bf]/20"
+                      className="drill-btn-secondary"
                     >
-                      <Eye className="h-4 w-4" />
+                      <Eye style={{ width: 15, height: 15 }} />
                       <span>
                         {showSolutionOverlay
                           ? "Sembunyikan Solusi Instruktur"
@@ -816,37 +783,35 @@ export default function StudentDrillWorkspace({
                     <button
                       type="button"
                       onClick={handleResetForNewAttempt}
-                      className="flex w-full items-center justify-center gap-2 border border-[#28323c] bg-[#090c10] py-2.5 font-['DM_Mono'] text-xs text-[#eef2f5] transition hover:border-[#41d9ef] hover:text-[#41d9ef]"
+                      className="drill-btn-outline"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
+                      <RotateCcw style={{ width: 14, height: 14 }} />
                       <span>Coba Lagi Studi Kasus</span>
                     </button>
                   </div>
 
                   {/* Prior History Accordion */}
                   {history.length > 1 && (
-                    <div className="mt-5 border-t border-[#1c252d] pt-3">
-                      <div className="flex items-center gap-1.5 font-['DM_Mono'] text-[10px] text-[#6f7d88]">
-                        <History className="h-3.5 w-3.5" />
+                    <div className="drill-history-box">
+                      <div className="drill-history-title">
+                        <History style={{ width: 14, height: 14 }} />
                         <span>RIWAYAT PERCOBAAN ({history.length} KALI)</span>
                       </div>
-                      <div className="mt-2 space-y-1.5">
+                      <div>
                         {history.map((h) => (
                           <div
                             key={h.id}
-                            className="flex items-center justify-between border border-[#1f2937] bg-[#0c1116] px-2.5 py-1.5 font-['DM_Mono'] text-[10px]"
+                            className="drill-history-item"
                           >
-                            <span className="text-[#87939f]">#{h.attemptNumber}</span>
+                            <span style={{ color: "#87939f" }}>#{h.attemptNumber}</span>
                             <span
-                              className={
-                                h.evaluationStatus === "PASSED"
-                                  ? "text-[#53d9bf]"
-                                  : "text-[#f43f5e]"
-                              }
+                              style={{
+                                color: h.evaluationStatus === "PASSED" ? "var(--green)" : "#f43f5e",
+                              }}
                             >
                               Skor: {h.score}% (SL: {h.invalidationScore}/25)
                             </span>
-                            <span className="text-[#64748b]">
+                            <span style={{ color: "#64748b" }}>
                               {new Date(h.createdAt).toLocaleTimeString()}
                             </span>
                           </div>
