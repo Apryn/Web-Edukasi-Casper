@@ -707,4 +707,103 @@ describe("Task 5.5 — Student Drill Progress & Mastery Integration Tests", () =
     assert.ok(p50 < 50, `Warm p50 (${p50.toFixed(2)}ms) must be < 50ms`);
     assert.ok(p95 < 80, `Warm p95 (${p95.toFixed(2)}ms) must be < 80ms`);
   });
+
+  test("13. DEF-55-01 Regression: Multi-drill retry on later drill updates latestValidSubId chronologically and resurfaces dismissal", () => {
+    const subD1 = makeSubmission({
+      id: "sub_def5501_d1_1",
+      drillId: drill1.id,
+      attemptNumber: 1,
+      score: 80,
+      invalidationScore: 20,
+      safetyGatePassed: true,
+      breakdown: makeBreakdown(20, 10, 20, 15, 15), // CRIT_ENTRY = 40%
+      createdAt: "2026-11-10T10:00:00.000Z",
+    });
+
+    const subD2Initial = makeSubmission({
+      id: "sub_def5501_d2_1",
+      drillId: drill2.id,
+      attemptNumber: 1,
+      score: 80,
+      invalidationScore: 20,
+      safetyGatePassed: true,
+      breakdown: makeBreakdown(20, 10, 20, 15, 15), // CRIT_ENTRY = 40%
+      createdAt: "2026-11-10T11:00:00.000Z",
+    });
+
+    const initialSubs = [subD1, subD2Initial];
+    const summaryBefore = computeStudentDrillIntelligence("student_alpha_55", publishedDrills, initialSubs);
+    const recsBefore = generateAdaptiveDrillRecommendations({
+      userId: "student_alpha_55",
+      publishedDrills,
+      submissions: initialSubs,
+      intelligenceSummary: summaryBefore,
+    });
+
+    const weakRecBefore = recsBefore.find((r) => r.category === "PRACTICE_WEAK_CRITERION");
+    assert.ok(weakRecBefore, "Weak criterion recommendation must be present");
+    assert.ok(
+      weakRecBefore.evidenceSignature.includes(`latestValidSubId=${subD2Initial.id}`),
+      `Expected chronologically latest submission ${subD2Initial.id}, got ${weakRecBefore.evidenceSignature}`
+    );
+
+    // Student dismisses recommendation
+    const dismissals = [
+      {
+        user_id: "student_alpha_55",
+        evidence_signature: weakRecBefore.evidenceSignature,
+        dismissed_at: "2026-11-10T11:30:00.000Z",
+      },
+    ];
+
+    // Student retries drill2 (NOT drill1) and gets identical CRIT_ENTRY score (40%)
+    const subD2Retry = makeSubmission({
+      id: "sub_def5501_d2_2",
+      drillId: drill2.id,
+      attemptNumber: 2,
+      score: 80,
+      invalidationScore: 20,
+      safetyGatePassed: true,
+      breakdown: makeBreakdown(20, 10, 20, 15, 15), // Identical prof=40.00, cases=2
+      createdAt: "2026-11-10T12:00:00.000Z",
+    });
+
+    const subsAfterRetry = [...initialSubs, subD2Retry];
+    const summaryAfter = computeStudentDrillIntelligence("student_alpha_55", publishedDrills, subsAfterRetry);
+    const recsAfter = generateAdaptiveDrillRecommendations({
+      userId: "student_alpha_55",
+      publishedDrills,
+      submissions: subsAfterRetry,
+      intelligenceSummary: summaryAfter,
+      dismissals,
+    });
+
+    const weakRecAfter = recsAfter.find((r) => r.category === "PRACTICE_WEAK_CRITERION");
+    assert.ok(weakRecAfter, "Recommendation MUST resurface after valid retry on drill2");
+    assert.ok(
+      weakRecAfter.evidenceSignature.includes(`latestValidSubId=${subD2Retry.id}`),
+      `Signature must update to ${subD2Retry.id}, got ${weakRecAfter.evidenceSignature}`
+    );
+    assert.notEqual(weakRecAfter.evidenceSignature, weakRecBefore.evidenceSignature);
+  });
+
+  test("14. DEF-55-02 Regression: NO_DATA state emits exclusively FOUNDATION_FIRST_DRILL without NEXT_PRACTICAL_DRILL duplication", () => {
+    const summary = computeStudentDrillIntelligence("student_alpha_55", publishedDrills, []);
+    const recs = generateAdaptiveDrillRecommendations({
+      userId: "student_alpha_55",
+      publishedDrills,
+      submissions: [],
+      intelligenceSummary: summary,
+    });
+
+    assert.equal(recs.length, 1, "NO_DATA state must emit exactly 1 onboarding recommendation");
+    assert.equal(recs[0].category, "FOUNDATION_FIRST_DRILL");
+    assert.equal(recs[0].priority, 60);
+    assert.equal(recs[0].drillId, drill1.id);
+    assert.equal(
+      recs.some((r) => r.category === "NEXT_PRACTICAL_DRILL"),
+      false,
+      "NEXT_PRACTICAL_DRILL must NOT be emitted when uniqueDrillsAttempted === 0"
+    );
+  });
 });

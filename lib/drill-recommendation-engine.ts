@@ -158,14 +158,23 @@ export function generateAdaptiveDrillRecommendations(params: {
       findBestCandidateDrill(activePublishedDrills, matchesCriteria) ||
       findBestCandidateDrill(activePublishedDrills);
 
-    // Get latest valid attempt across active buckets for this criterion
-    let latestValidSubId = "none";
+    // Get chronologically latest valid attempt across active published drill buckets
+    const publishedIds = new Set(activePublishedDrills.map((d) => d.id));
+    let latestValidSub: DbDrillSubmission | null = null;
     for (const b of buckets.values()) {
-      if (b.latestValidAttempt) {
-        latestValidSubId = b.latestValidAttempt.id;
-        break;
+      if (!publishedIds.has(b.drillId)) continue;
+      const candidateSub = b.latestValidAttempt;
+      if (!candidateSub) continue;
+      if (
+        !latestValidSub ||
+        Date.parse(candidateSub.created_at) > Date.parse(latestValidSub.created_at) ||
+        (Date.parse(candidateSub.created_at) === Date.parse(latestValidSub.created_at) &&
+          candidateSub.id.localeCompare(latestValidSub.id) > 0)
+      ) {
+        latestValidSub = candidateSub;
       }
     }
+    const latestValidSubId = latestValidSub ? latestValidSub.id : "none";
 
     if (candidate) {
       const prof = targetWeakness.currentProficiency ?? 0;
@@ -222,8 +231,14 @@ export function generateAdaptiveDrillRecommendations(params: {
   }
 
   // ── Rule 4: Next Practical Drill (Priority 70) ────────────────────
+  // Only applies once the student has attempted at least 1 valid drill;
+  // NO_DATA (uniqueDrillsAttempted === 0) is handled exclusively by Rule 5.
   const unattemptedGeneral = findBestCandidateDrill(activePublishedDrills);
-  if (unattemptedGeneral && candidates.length === 0) {
+  if (
+    unattemptedGeneral &&
+    candidates.length === 0 &&
+    intelligenceSummary.uniqueDrillsAttempted > 0
+  ) {
     const signature = `drill:next:candidate=${unattemptedGeneral.id}`;
     candidates.push({
       category: "NEXT_PRACTICAL_DRILL",

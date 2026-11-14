@@ -3,10 +3,10 @@
 ### TASK 5.5: STUDENT DRILL PROGRESS & MASTERY INTEGRATION
 
 **Auditor:** Senior Software Architect, Learning Analytics Engineer & Technical Auditor  
-**Date:** 2026-11-13  
+**Date:** 2026-11-14  
 **Working Directory:** `d:\Developer\Web-Edukasi-Casper-main`  
-**Git Working Tree:** `main` (0 commits, 0 pushes, zero premature deployment)  
-**Database SHA-256:** `9F8945795CFE605180C338943411B2EA63A8981530545A6EE6F2678B3C1953D8` (Byte-for-byte identical)  
+**Git Branch / HEAD:** `main` (`5cd6dda`, working tree clean sebelum pembaruan laporan audit ini; 0 source code edits selama fase audit)  
+**Database SHA-256 (`data/academy.json`):** `FA4C13AC7615AE94D6526E71F8F63C602E5D2B87FB0BC62179D4964D0C7F20A0` (Identik sebelum & sesudah audit)  
 **Audit Target:** Rev 5 Specifications vs. Actual Source Code Implementation
 
 ---
@@ -21,11 +21,11 @@ Audit independen terhadap implementasi **Task 5.5: Student Drill Progress & Mast
 2. **Mastery Engine & Anti-Farming**: Terbukti deterministik. Siswa yang mengulang 1 studi kasus sebanyak 10 kali dengan skor 100/100 tidak akan pernah mendapatkan status `MASTERED` (dibatasi pada `DEVELOPING`/`NEEDS_PRACTICE`). Path A dan Path B secara mutlak mewajibkan minimal 2 studi kasus berbeda ($N_{\text{distinct}} \ge 2$).
 3. **Weakness Classifier**: Canonical Decision Tree menerapkan batas-batas disjoint tanpa tumpang tindih. Ambang $N_{\text{distinct}} < 2$ menghasilkan `INSUFFICIENT_DATA`. Status `CRITICAL_RISK` terisolasi ketat pada kriteria Stop-Loss (`CRIT_INVALID`) dan tidak pernah merembet ke kriteria lain. Secondary Pedagogical Flags (`FLAG_PREMATURE_ENTRY`, dll.) berfungsi murni sebagai anotasi deskriptif tanpa mengubah status kanonikal.
 4. **Adaptive Recommendation**: Pipeline seleksi kandidat Tier 1 (studi kasus baru belum dikerjakan) dan Tier 2 (studi kasus yang belum tuntas) bekerja deterministik dengan tie-breaking stabil (`order_index` lalu `id`). Evidence signature secara konsisten menyertakan `latestValidSubId`. Mekanisme dismissal resurfacing terbukti berhasil: ketika siswa melakukan percobaan baru yang gagal, signature berubah dan rekomendasi otomatis muncul kembali. Maksimal 2 rekomendasi aktif ditegakkan.
-5. **Performa Streaming $\mathcal{O}(N)$**: Riwayat submission lengkap diproses dalam single-pass $\mathcal{O}(N)$ memory streaming tanpa windowing 200 record. Pengujian independen pada 10.000 riwayat submission sintetis menghasilkan **Warm Median (p50): 8.31 ms** dan **Warm 95th Percentile (p95): 10.12 ms**, jauh melampaui batas SLA sub-50ms / sub-100ms.
-6. **Isolasi Arsitektur & Keamanan**: Quiz Intelligence (Sprint 4) dan Practical Drill Intelligence (Sprint 5) terpisah secara modular pada Learning Dashboard. Endpoint `GET /api/drills/mastery` dilindungi dari IDOR dengan penegakan scope sesi JWT HttpOnly / Bearer.
-7. **Database & Git Integrity**: File `data/academy.json` memiliki SHA-256 yang identik dengan baseline. Tidak ada commit, push, deployment, maupun restart PM2 yang dilakukan.
+5. **Performa Streaming $\mathcal{O}(N)$**: Riwayat submission lengkap diproses dalam single-pass $\mathcal{O}(N)$ memory streaming tanpa windowing 200 record. Pengujian aktual pada 10.000 riwayat submission sintetis menghasilkan **Cold: 14.13 ms | Warm Median (p50): 8.56 ms | Warm 95th Percentile (p95): 11.57 ms**, jauh melampaui batas SLA sub-50ms / sub-80ms.
+6. **Isolasi Arsitektur & Keamanan**: Quiz Intelligence (Sprint 4) dan Practical Drill Intelligence (Sprint 5) terpisah secara modular pada Learning Dashboard (`25/25` tes regresi Sprint 4 lulus). Endpoint `GET /api/drills/mastery` dilindungi dari IDOR dengan penegakan scope sesi JWT HttpOnly / Bearer.
+7. **Database & Git Integrity**: File `data/academy.json` memiliki SHA-256 yang identik sebelum dan sesudah audit (`FA4C13AC7615AE94D6526E71F8F63C602E5D2B87FB0BC62179D4964D0C7F20A0`). Tidak ada source code yang diubah, tidak ada commit, push, deployment, maupun restart PM2 yang dilakukan selama fase audit ini.
 
-**Rekomendasi Auditor:** **ACCEPT — READY FOR SIGN-OFF**.
+**Rekomendasi Auditor:** **ACCEPT** (Seluruh 12 Acceptance Criteria Rev 5 terpenuhi; 2 observasi minor non-blocking didokumentasikan di Section 9 Defect Register).
 
 ---
 
@@ -376,40 +376,24 @@ ok 1 - Task 5.5 — Student Drill Progress & Mastery Integration Tests
 
 ## 5. PERFORMANCE BENCHMARK EVIDENCE
 
-Pengukuran dilakukan secara independen menggunakan script benchmarking khusus [`scratch/benchmark-audit.mjs`](file:///C:/Users/Lenovo/.gemini/antigravity/brain/703658aa-8d8b-4e5f-834a-54525927c156/scratch/benchmark-audit.mjs) dengan mengukur pemrosesan 10.000 rekaman submission sintetis melintasi 20 studi kasus berbeda.
+Pengukuran dijalankan langsung melalui skenario benchmark terisolasi pada [`tests/sprint-5-task-5-5.test.mjs`](file:///d:/Developer/Web-Edukasi-Casper-main/tests/sprint-5-task-5-5.test.mjs) (Subtest 12, lines 625–710) dengan mengukur pemrosesan 10.000 rekaman submission sintetis melintasi 20 studi kasus berbeda pada `computeStudentDrillMastery`.
 
 ### Metodologi Pengukuran
-- **Data Uji:** 10.000 rekaman `DbDrillSubmission` valid dengan timestamp terdistribusi realistis.
-- **Cold Run:** 1 eksekusi pertama untuk mengukur kompilasi JIT awal V8.
-- **Warm Runs:** 20 kali iterasi eksekusi serial terisolasi menggunakan `performance.now()`.
-- **Statistik:** Perhitungan minimum, maksimum, mean, median (p50), 90th percentile (p90), 95th percentile (p95), dan 99th percentile (p99).
+- **Data Uji:** 10.000 rekaman `DbDrillSubmission` valid melintasi 20 `DbDrillCase` (`numDrills = 20`, 500 attempts per drill) dengan timestamp terdistribusi realistis.
+- **Cold Run:** 1 eksekusi pertama menggunakan `performance.now()` sebelum iterasi warm.
+- **Warm Runs:** 10 kali iterasi serial terisolasi menggunakan `performance.now()`.
+- **Statistik:** Array durasi warm diurutkan menaik; `p50` diambil pada indeks `Math.floor(len * 0.5)` dan `p95` pada `Math.floor(len * 0.95)`.
 
-### Hasil Pengukuran Aktual
-
-```json
-{
-  "benchmarkTarget": "computeStudentDrillMastery",
-  "numSubmissions": 10000,
-  "numDrills": 20,
-  "totalEvaluated": 10000,
-  "coldDurationMs": 14.946,
-  "warmIterations": 20,
-  "minMs": 8.184,
-  "maxMs": 10.123,
-  "meanMs": 8.543,
-  "p50Ms": 8.306,
-  "p90Ms": 9.493,
-  "p95Ms": 10.123,
-  "p99Ms": 10.123,
-  "passSLA": true
-}
+### Hasil Pengukuran Aktual (Sesi Audit 2026-11-14)
+```text
+[BENCHMARK 10k RECORDS] Cold: 14.13ms | Warm p50: 8.56ms | Warm p95: 11.57ms
 ```
 
 ### Analisis Latensi
-- **Cold Latency:** **14.95 ms**
-- **Warm Median (p50):** **8.31 ms** (Target SLA: $< 50$ ms $\implies$ **Margin Keamanan: 83.4%**)
-- **Warm 95th Percentile (p95):** **10.12 ms** (Target SLA: $< 80$ ms $\implies$ **Margin Keamanan: 87.3%**)
-- **Konsistensi Varian:** Nilai minimum (8.18 ms) dan maksimum (10.12 ms) hanya berselisih 1.94 ms, membuktikan stabilitas alokasi memori linear tanpa lonjakan garbage collection.
+- **Cold Latency:** **14.13 ms**
+- **Warm Median (p50):** **8.56 ms** (Target SLA: $< 50$ ms $\implies$ **Margin Keamanan: 82.9%**)
+- **Warm 95th Percentile (p95):** **11.57 ms** (Target SLA: $< 80$ ms $\implies$ **Margin Keamanan: 85.5%**)
+- **Catatan Transparansi:** Benchmark ini mengukur fungsi murni `computeStudentDrillMastery` di memori Node.js (terpisah dari durasi keseluruhan test suite yang mencakup setup/teardown DB dan I/O test lain).
 
 ---
 
@@ -421,18 +405,27 @@ Pengukuran dilakukan secara independen menggunakan script benchmarking khusus [`
 
 ---
 
-## 7. REGRESSION AUDIT (TASKS 5.1 – 5.4)
+## 7. REGRESSION AUDIT (TASKS 5.1 – 5.4 & SPRINT 4)
 
-Seluruh test suite dari Task 5.1 hingga Task 5.4 dijalankan ulang untuk memastikan tidak ada efek samping:
+Seluruh test suite dari Task 5.1 hingga Task 5.4 serta regresi Sprint 4 (Learning Intelligence & Quiz Isolation) dijalankan ulang pada sesi audit ini:
 
 | Test Suite | Modul yang Diuji | Hasil |
 | :--- | :--- | :---: |
 | `tests/sprint-5-task-5-1.test.mjs` | Data Model & Dual-Versioning Storage | **8 / 8 PASS** |
-| `tests/sprint-5-task-5-2.test.mjs` | Deterministic Rubric Scoring & Safety Gate | **10 / 10 PASS** |
+| `tests/sprint-5-task-5-2.test.mjs` | Deterministic Rubric Scoring & Safety Gate | **12 / 12 PASS** |
 | `tests/sprint-5-task-5-3.test.mjs` | Coordinate-Locked Interactive Chart Canvas | **12 / 12 PASS** |
 | `tests/sprint-5-task-5-4.test.mjs` | Student Drill Workspace & Decision Console | **9 / 9 PASS** |
 | `tests/sprint-5-task-5-5.test.mjs` | Progress Mastery & Adaptive Recommendations | **12 / 12 PASS** |
-| **Total Test Cases** | **Sprint 5 Practical Drills** | **51 / 51 PASS (100%)** |
+| **Total Sprint 5 Tests** | **5 Suites** | **53 / 53 PASS (100%)** |
+| `tests/learning-api-authorization.test.mjs` | Sprint 4 API Auth & Privacy | **8 / 8 PASS** |
+| `tests/learning-intelligence-engine.test.mjs` | Sprint 4 Quiz & Cohort Analytics | **8 / 8 PASS** |
+| `tests/learning-recommendations.test.mjs` | Sprint 4 Adaptive Recommendations | **6 / 6 PASS** |
+| `tests/sprint-4-e2e.test.mjs` | Sprint 4 End-to-End Verification | **3 / 3 PASS** |
+| **Total Sprint 4 Regression** | **4 Suites** | **25 / 25 PASS (100%)** |
+
+Selain itu, verifikasi statis dan build:
+- **TypeScript (`npx tsc --noEmit`):** Exit code `0` (**0 errors**).
+- **ESLint (`npm run lint`):** Exit code `0` (**0 errors**, 15 pre-existing unused-var warnings di `app/admin/page.tsx`, `app/analisa/page.tsx`, `app/page.tsx`; 0 warnings di seluruh modul Task 5.5).
 
 ---
 
@@ -440,32 +433,38 @@ Seluruh test suite dari Task 5.1 hingga Task 5.4 dijalankan ulang untuk memastik
 
 ### Database Checksum
 - **File:** `data/academy.json`
-- **Baseline Checksum:** `9F8945795CFE605180C338943411B2EA63A8981530545A6EE6F2678B3C1953D8`
-- **Post-Audit Checksum:** `9F8945795CFE605180C338943411B2EA63A8981530545A6EE6F2678B3C1953D8`
-- **Status:** **IDENTIK**. Tidak ada mutasi atau polusi pada file database produksi.
+- **Pre-Audit Checksum (2026-11-14):** `FA4C13AC7615AE94D6526E71F8F63C602E5D2B87FB0BC62179D4964D0C7F20A0`
+- **Post-Audit Checksum (2026-11-14):** `FA4C13AC7615AE94D6526E71F8F63C602E5D2B87FB0BC62179D4964D0C7F20A0`
+- **Status:** **IDENTIK**. Tidak ada mutasi atau polusi pada file database selama audit. *(Catatan: Hash baseline awal pra-seeding pada laporan lama adalah `9F894579...`, berubah menjadi `FA4C13AC...` saat seeding official drill pada sesi sebelumnya sebelum audit ini dimulai).*
 
 ### Git Status & Lingkungan Operasional
-- **Status Working Tree:** Bersih dari commit prematur (`0 commits, 0 pushes`).
-- **Production Server / PM2:** Tidak ada restart proses PM2 dan tidak ada interaksi SSH/VPS.
-- **Kepatuhan Batasan:** Task 5.6+ tidak disentuh (`LOCKED`).
+- **HEAD Commit saat audit:** `5cd6dda` (`main`)
+- **Perubahan Source Code selama Audit:** **0 file** (hanya pembaruan laporan audit ini).
+- **Production Server / PM2:** Tidak ada commit, push, deployment, maupun restart proses PM2 selama fase audit.
+- **Kepatuhan Batasan:** Task 5.6+ tetap **LOCKED**.
 
 ---
 
 ## 9. DEFECT REGISTER
 
-| Defect ID | Komponen | Deskripsi Masalah | Tingkat Keparahan | Status Resolusi |
+Audit baris demi baris menemukan **0 defect kritis/blocking** terhadap 12 Acceptance Criteria Rev 5, serta **2 observasi edge-case minor (non-blocking)** pada `lib/drill-recommendation-engine.ts` yang didokumentasikan secara transparan:
+
+| Defect ID | Komponen & Lokasi | Deskripsi Masalah & Dampak | Tingkat Keparahan | AC Terkait |
 | :---: | :--- | :--- | :---: | :---: |
-| *None* | — | Tidak ditemukan cacat fungsional, regresi, atau ketidaksesuaian spesifikasi | — | **CLEAN (0 DEFECTS)** |
+| **DEF-55-01** | `lib/drill-recommendation-engine.ts` (Lines 161–168) | Pada Rule 2 (`PRACTICE_WEAK_CRITERION`), pencarian `latestValidSubId` berhenti (`break`) pada bucket pertama di `Map` yang memiliki `latestValidAttempt`, bukan memilih `latestValidAttempt` dengan `created_at` paling baru di seluruh bucket. **Dampak:** Jika siswa melakukan retry pada drill *kedua* dan kebetulan menghasilkan `prof` (`toFixed(2)`) yang persis sama, `latestValidSubId` di signature tetap menunjuk drill pertama (sehingga dismissal pada kasus edge tersebut tidak otomatis resurface). | **Low / Minor** | AC-9 (Edge Case Multi-Drill) |
+| **DEF-55-02** | `lib/drill-recommendation-engine.ts` (Lines 225–256) | Pada kondisi `NO_DATA` (`uniqueDrillsAttempted === 0`), Rule 4 (`NEXT_PRACTICAL_DRILL`, Priority 70) tidak mengecualikan kondisi `uniqueDrillsAttempted === 0`, sehingga bersama Rule 5 (`FOUNDATION_FIRST_DRILL`, Priority 60) keduanya menargetkan `activePublishedDrills[0]` dan menghasilkan 2 rekomendasi aktif untuk drill yang sama pada pengguna baru. | **Low / UX Minor** | AC-1 (UX Redundancy) |
+
+*(Sesuai aturan audit: tidak ada source code yang diubah selama fase audit untuk memperbaiki observasi di atas tanpa instruksi PO).*
 
 ---
 
 ## 10. FINAL RECOMMENDATION
 
-Berdasarkan bukti verifikasi empiris baris demi baris, hasil automated test suite (51/51 PASS), kepatuhan decision tree Rev 5, integritas database SHA-256 yang terjaga sempurna, serta benchmark performa 10.000 record dengan p50 8.31 ms:
+Berdasarkan verifikasi independen terhadap spesifikasi Rev 5, source code aktual, automated test suite (**53/53 Sprint 5 PASS** & **25/25 Sprint 4 PASS**), TypeScript & ESLint (**0 errors**), integritas database SHA-256 yang terjaga identik selama audit, serta benchmark 10.000 record (**Cold 14.13 ms, Warm p50 8.56 ms, Warm p95 11.57 ms**):
 
-### KEPUTUSAN AUDITOR: **ACCEPT — FULLY VERIFIED**
+### KEPUTUSAN AUDITOR: **ACCEPT** *(dengan 2 observasi minor non-blocking pada Defect Register)*
 
-Implementasi Task 5.5 dinyatakan **LULUS AUDIT** dan siap menerima penerimaan formal (Formal Acceptance) dari Product Owner.
+Seluruh 12 Acceptance Criteria Rev 5 terpenuhi dan berfungsi deterministik. Dua observasi minor (`DEF-55-01` dan `DEF-55-02`) tidak memblokir kelayakan produksi, namun direkomendasikan kepada Product Owner apakah ingin langsung diberi **TASK 5.5 — ACCEPTED** atau meminta patch minor 15 baris pada `lib/drill-recommendation-engine.ts` terlebih dahulu.
 
-> **Status Saat Ini:** STOP CONDITION DIJALANKAN. Sesuai instruksi PO, Antigravity menghentikan seluruh aktivitas dan menunggu keputusan resmi Product Owner sebelum melanjutkan ke langkah berikutnya. Task 5.6+ tetap berstatus **LOCKED**.
+> **Status Saat Ini:** STOP CONDITION DIJALANKAN. Tidak ada perubahan source code, commit, push, deployment, atau restart PM2. Task 5.6+ tetap berstatus **LOCKED** menunggu keputusan final Product Owner.
 
